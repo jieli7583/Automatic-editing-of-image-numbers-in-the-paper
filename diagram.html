@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图表生成器</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f0f0f0;
+  --panel: #ffffff;
+  --border: #d8d8d8;
+  --accent: #1a1a1a;
+  --muted: #888;
+  --input-bg: #f8f8f8;
+  --sans: 'Noto Sans SC', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  font-family: var(--sans);
+  color: var(--accent);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  grid-template-columns: 300px 1fr;
+}
+
+header {
+  grid-column: 1 / -1;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 500;
+}
+header .logo { font-family: var(--mono); font-size: 13px; opacity: .9; }
+header .sep  { opacity: .2; }
+header .sub  { opacity: .5; font-size: 12px; font-weight: 400; }
+header .actions { margin-left: auto; display: flex; gap: 8px; }
+
+.btn {
+  padding: 6px 14px; border: none; border-radius: 4px;
+  font-family: var(--sans); font-size: 12px; font-weight: 500;
+  cursor: pointer; transition: all .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-ghost   { background: rgba(255,255,255,.1); color:#fff; }
+.btn-ghost:hover { background: rgba(255,255,255,.2); }
+.btn-primary { background: #fff; color: var(--accent); }
+.btn-primary:hover { background: #e8e8e8; }
+.btn-success { background: #2d7d46; color: #fff; }
+.btn-success:hover { background: #246038; }
+
+/* mode tabs */
+.mode-tabs { display:flex; gap:0; }
+.mode-tab {
+  padding: 5px 16px; border:none; border-radius:3px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.05em;
+  cursor:pointer; background:rgba(255,255,255,.1); color:rgba(255,255,255,.6);
+  transition:all .15s;
+}
+.mode-tab.active { background:#fff; color:var(--accent); font-weight:600; }
+.mode-tab:not(.active):hover { background:rgba(255,255,255,.2); color:#fff; }
+
+aside {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.section { padding:14px 16px; border-bottom:1px solid var(--border); }
+.section-title {
+  font-family:var(--mono); font-size:10px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); margin-bottom:10px;
+}
+
+textarea {
+  width:100%; min-height:200px; padding:10px;
+  border:1px solid var(--border); border-radius:4px;
+  background:var(--input-bg); font-family:var(--mono);
+  font-size:12px; line-height:1.6; color:var(--accent);
+  resize:vertical; outline:none; tab-size:2;
+}
+textarea:focus { border-color:#aaa; }
+
+.hint { font-size:11px; color:var(--muted); margin-top:6px; line-height:1.6; }
+.hint code {
+  font-family:var(--mono); background:#f0f0f0;
+  padding:1px 4px; border-radius:2px;
+}
+
+.control-row {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;
+}
+.control-label { font-size:12px; color:var(--accent); min-width:72px; }
+.control-val   { font-family:var(--mono); font-size:11px; color:var(--muted); min-width:32px; text-align:right; }
+input[type=range] { flex:1; margin:0 10px; accent-color:var(--accent); cursor:pointer; }
+
+.color-row {
+  display:flex; align-items:center; justify-content:space-between; margin-bottom:9px;
+}
+input[type=color] {
+  width:32px; height:24px; border:1px solid var(--border);
+  border-radius:3px; cursor:pointer; padding:1px;
+}
+
+select {
+  padding:5px 8px; border:1px solid var(--border); border-radius:4px;
+  background:var(--input-bg); font-family:var(--sans); font-size:12px;
+  color:var(--accent); outline:none; cursor:pointer; width:100%; margin-bottom:9px;
+}
+
+.toggle-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:9px; font-size:12px; }
+.toggle { position:relative; width:36px; height:20px; }
+.toggle input { opacity:0; width:0; height:0; }
+.toggle-slider {
+  position:absolute; inset:0; background:#ccc; border-radius:20px;
+  cursor:pointer; transition:.2s;
+}
+.toggle-slider::before {
+  content:''; position:absolute; width:14px; height:14px;
+  left:3px; top:3px; background:#fff; border-radius:50%; transition:.2s;
+}
+.toggle input:checked + .toggle-slider { background:var(--accent); }
+.toggle input:checked + .toggle-slider::before { transform:translateX(16px); }
+
+/* panel visibility */
+.class-only, .seq-only { transition: none; }
+body.mode-seq  .class-only { display:none; }
+body.mode-class .seq-only  { display:none; }
+
+main {
+  overflow:auto; padding:32px;
+  display:flex; align-items:flex-start; justify-content:center;
+  background:#e8e8e8;
+  background-image:radial-gradient(circle,#ccc 1px,transparent 1px);
+  background-size:20px 20px;
+}
+#canvas-wrap { background:#fff; box-shadow:0 4px 24px rgba(0,0,0,.12); display:inline-block; }
+#diagram-canvas { display:block; }
+
+.err-msg {
+  position:fixed; bottom:16px; left:320px; right:0;
+  display:flex; justify-content:center; pointer-events:none; z-index:10;
+}
+.err-inner {
+  background:#c0392b; color:#fff; padding:8px 18px; border-radius:4px;
+  font-family:var(--mono); font-size:12px; opacity:0; transition:opacity .2s;
+  pointer-events:none;
+}
+.err-inner.show { opacity:1; }
+</style>
+</head>
+<body class="mode-class">
+
+<header>
+  <span class="logo">图表生成器</span>
+  <span class="sep">|</span>
+  <span class="sub">输入文本 → 实时渲染</span>
+  <div class="mode-tabs">
+    <button class="mode-tab active" id="tab-class" onclick="setMode('class')">类图</button>
+    <button class="mode-tab"        id="tab-seq"   onclick="setMode('seq')">时序图</button>
+  </div>
+  <div class="actions">
+    <button class="btn btn-ghost"   onclick="resetDefaults()">重置</button>
+    <button class="btn btn-primary" onclick="copyImage()" id="btn-copy">📋 复制图片</button>
+    <button class="btn btn-success" onclick="downloadImage()">⬇ 下载 PNG</button>
+  </div>
+</header>
+
+<aside>
+
+  <!-- ── CLASS input ── -->
+  <div class="section class-only">
+    <div class="section-title">类图语法</div>
+    <textarea id="input-class" spellcheck="false"></textarea>
+    <p class="hint">
+      <code>class 类名</code> 定义类<br>
+      <code>+方法() : 返回值</code> 公有方法<br>
+      <code>-字段 : 类型</code> 私有字段<br>
+      <code>#字段 : 类型</code> 受保护字段<br>
+      <code>«interface»</code> 或 <code>«singleton»</code> 刻板标记<br>
+      空行分隔类定义<br><br>
+      <b>关系（单独一行）：</b><br>
+      <code>A --> B : 标签</code> 依赖/关联<br>
+      <code>A --* B : 标签</code> 组合<br>
+      <code>A --o B : 标签</code> 聚合<br>
+      <code>A --|> B</code> 继承<br>
+      <code>A ..|> B</code> 实现（虚线）<br>
+      <code>A ..> B : 标签</code> 依赖（虚线）
+    </p>
+  </div>
+
+  <!-- ── SEQ input ── -->
+  <div class="section seq-only">
+    <div class="section-title">时序图语法</div>
+    <textarea id="input-seq" spellcheck="false"></textarea>
+    <p class="hint">
+      <code>participant 角色名</code> 声明角色（可选）<br>
+      <code>A -> B : 消息</code> 实线箭头<br>
+      <code>A --> B : 消息</code> 虚线箭头（返回）<br>
+      <code>note : 文字</code> 备注条<br>
+      <code>== 分隔文字 ==</code> 分隔线
+    </p>
+  </div>
+
+  <!-- ── Layout ── -->
+  <div class="section class-only">
+    <div class="section-title">类图 · 布局</div>
+    <div class="control-row">
+      <span class="control-label">类间距X</span>
+      <input type="range" id="c-gapx" min="20" max="120" value="60" oninput="render()">
+      <span class="control-val" id="v-gapx">60</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">类间距Y</span>
+      <input type="range" id="c-gapy" min="20" max="100" value="40" oninput="render()">
+      <span class="control-val" id="v-gapy">40</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">节点最小宽</span>
+      <input type="range" id="c-minw" min="80" max="260" value="140" oninput="render()">
+      <span class="control-val" id="v-minw">140</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">行高</span>
+      <input type="range" id="c-rowh" min="16" max="36" value="22" oninput="render()">
+      <span class="control-val" id="v-rowh">22</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">内边距X</span>
+      <input type="range" id="c-padx" min="6" max="30" value="12" oninput="render()">
+      <span class="control-val" id="v-padx">12</span>
+    </div>
+  </div>
+
+  <div class="section seq-only">
+    <div class="section-title">时序图 · 布局</div>
+    <div class="control-row">
+      <span class="control-label">Actor间距</span>
+      <input type="range" id="s-col" min="80" max="240" value="140" oninput="render()">
+      <span class="control-val" id="v-col">140</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">行高</span>
+      <input type="range" id="s-row" min="28" max="80" value="44" oninput="render()">
+      <span class="control-val" id="v-row">44</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">Actor宽</span>
+      <input type="range" id="s-aw" min="60" max="180" value="110" oninput="render()">
+      <span class="control-val" id="v-aw">110</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">Actor高</span>
+      <input type="range" id="s-ah" min="22" max="50" value="32" oninput="render()">
+      <span class="control-val" id="v-ah">32</span>
+    </div>
+  </div>
+
+  <!-- ── Font ── -->
+  <div class="section">
+    <div class="section-title">字体</div>
+    <select id="g-font" onchange="render()">
+      <option value="Noto Sans SC, sans-serif">Noto Sans SC（推荐）</option>
+      <option value="SimSun, serif">宋体</option>
+      <option value="SimHei, sans-serif">黑体</option>
+      <option value="Arial, sans-serif">Arial</option>
+      <option value="JetBrains Mono, monospace">JetBrains Mono</option>
+    </select>
+    <div class="control-row">
+      <span class="control-label">字体大小</span>
+      <input type="range" id="g-fs" min="8" max="22" value="12" oninput="render()">
+      <span class="control-val" id="v-fs">12</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">线条粗细</span>
+      <input type="range" id="g-lw" min="0.5" max="3" step="0.5" value="1" oninput="render()">
+      <span class="control-val" id="v-lw">1</span>
+    </div>
+  </div>
+
+  <!-- ── Colors ── -->
+  <div class="section">
+    <div class="section-title">颜色</div>
+    <div class="color-row"><span style="font-size:12px">背景色</span><input type="color" id="g-cbg"     value="#ffffff" oninput="render()"></div>
+    <div class="color-row class-only"><span style="font-size:12px">类头填充</span><input type="color" id="g-chead"   value="#1a1a1a" oninput="render()"></div>
+    <div class="color-row class-only"><span style="font-size:12px">类头文字</span><input type="color" id="g-cheadt"  value="#ffffff" oninput="render()"></div>
+    <div class="color-row class-only"><span style="font-size:12px">成员填充</span><input type="color" id="g-cbody"   value="#ffffff" oninput="render()"></div>
+    <div class="color-row"><span style="font-size:12px">文字色</span><input type="color" id="g-ctext"   value="#1a1a1a" oninput="render()"></div>
+    <div class="color-row"><span style="font-size:12px">边框/线色</span><input type="color" id="g-cline"   value="#1a1a1a" oninput="render()"></div>
+    <div class="color-row seq-only"><span style="font-size:12px">Actor填充</span><input type="color" id="g-cactor"  value="#1a1a1a" oninput="render()"></div>
+    <div class="color-row seq-only"><span style="font-size:12px">Actor文字</span><input type="color" id="g-cactort" value="#ffffff" oninput="render()"></div>
+    <div class="color-row seq-only"><span style="font-size:12px">Note填充</span><input type="color" id="g-cnote"   value="#fffbe6" oninput="render()"></div>
+  </div>
+
+  <!-- Canvas pad -->
+  <div class="section">
+    <div class="section-title">画布</div>
+    <div class="control-row">
+      <span class="control-label">内边距</span>
+      <input type="range" id="g-pad" min="8" max="80" value="40" oninput="render()">
+      <span class="control-val" id="v-pad">40</span>
+    </div>
+  </div>
+
+</aside>
+
+<main>
+  <div id="canvas-wrap">
+    <canvas id="diagram-canvas"></canvas>
+  </div>
+</main>
+
+<div class="err-msg"><div class="err-inner" id="err-inner"></div></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  MODE
+// ═══════════════════════════════════════════════════════
+let MODE = 'class';
+
+function setMode(m) {
+  MODE = m;
+  document.body.className = 'mode-' + m;
+  document.getElementById('tab-class').classList.toggle('active', m === 'class');
+  document.getElementById('tab-seq').classList.toggle('active',   m === 'seq');
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+//  DEFAULT TEXTS
+// ═══════════════════════════════════════════════════════
+const DEFAULT_CLASS = `class ResManager
+«singleton»
+-mHandles : Dictionary<string, Handle>
++currentMode : LoadModeEnum
++Load<T>(path) : T
++LoadAsync<T>(path, callback)
++LoadAsyncByResources<T>(path, callback)
++LoadAsyncByAddressables<T>(path, callback)
++Unload(obj : GameObject)
++ReleasePrefab(go : GameObject)
++ReleaseAsset(path : string)
+
+class ObjectPool
+«singleton»
+-mPoolDict : Dictionary<string, Queue>
++InitPool(prefabPath, count) : Task
++Get(key) : GameObject
++Return(key, obj)
+
+class BulletBase
+«MonoBehaviour»
+#mPrefabPath : string
++Init(cfg : BulletConfig)
+-OnTriggerEnter2D()
+
+class EventManager
+«singleton»
++AddListener(event, callback)
++Trigger(event, data)
++RemoveListener(event, callback)
+
+class LoadModeEnum
+«enum»
+Resources
+Addressables
+
+ResManager --> ObjectPool : 被使用
+ResManager ..> LoadModeEnum : 依赖
+ObjectPool ..> ResManager : 调用Load
+BulletBase ..> ObjectPool : Get/Return
+BulletBase ..> EventManager : Trigger`;
+
+const DEFAULT_SEQ = `participant Caller
+participant ResManager
+participant Resources
+participant Addressables
+
+Caller -> ResManager : LoadAsync<T>(path, callback)
+note : 检查 currentMode
+ResManager -> Resources : Resources.LoadAsync<T>(path)
+Resources --> ResManager : ResourceRequest 完成
+ResManager -> ResManager : Instantiate (若为 GameObject)
+ResManager --> Caller : callback(result)
+== Addressables 模式 ==
+ResManager -> Addressables : InstantiateAsync(path)
+Addressables --> ResManager : Completed 事件
+ResManager --> Caller : callback(result)`;
+
+// ═══════════════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════════════
+function g(id) { return document.getElementById(id); }
+function n(id) { return parseFloat(g(id).value); }
+
+function cfg() {
+  return {
+    font:   g('g-font').value,
+    fs:     n('g-fs'),
+    lw:     n('g-lw'),
+    pad:    n('g-pad'),
+    cbg:    g('g-cbg').value,
+    ctext:  g('g-ctext').value,
+    cline:  g('g-cline').value,
+    // class
+    chead:  g('g-chead').value,
+    cheadt: g('g-cheadt').value,
+    cbody:  g('g-cbody').value,
+    gapx:   n('c-gapx'),
+    gapy:   n('c-gapy'),
+    minw:   n('c-minw'),
+    rowh:   n('c-rowh'),
+    padx:   n('c-padx'),
+    // seq
+    col:    n('s-col'),
+    row:    n('s-row'),
+    aw:     n('s-aw'),
+    ah:     n('s-ah'),
+    cactor: g('g-cactor').value,
+    cactort:g('g-cactort').value,
+    cnote:  g('g-cnote').value,
+  };
+}
+
+// live slider labels
+document.querySelectorAll('input[type=range]').forEach(inp => {
+  inp.addEventListener('input', () => {
+    const key = inp.id.replace(/^[cs][-_]/, '').replace(/^g[-_]/, '');
+    const el = g('v-' + key) || g('v-' + inp.id.replace(/^[csg][-_]/,''));
+    if (el) el.textContent = inp.value;
+  });
+});
+
+// ═══════════════════════════════════════════════════════
+//  ERROR DISPLAY
+// ═══════════════════════════════════════════════════════
+let errTimer = null;
+function showErr(msg) {
+  const el = g('err-inner');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (errTimer) clearTimeout(errTimer);
+  errTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ═══════════════════════════════════════════════════════
+//  CANVAS UTILS
+// ═══════════════════════════════════════════════════════
+function setupCanvas(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  return ctx;
+}
+
+function wrapText(ctx, text, maxW) {
+  // Simple: just return as-is (labels are usually short)
+  return [text];
+}
+
+// ═══════════════════════════════════════════════════════
+//  ██████  CLASS DIAGRAM
+// ═══════════════════════════════════════════════════════
+
+// ── Parser ──────────────────────────────────────────────
+// Relation pattern: A --> B, A --* B, A --o B, A --|> B, A ..|> B, A ..> B
+const REL_RE = /^(\S+)\s+(-->|--\*|--o|--\|>|\.\.\|>|\.\.>)\s+(\S+)(?:\s*:\s*(.+))?$/;
+
+function parseClass(text) {
+  const classes = [];
+  const rels = [];
+  let cur = null;
+
+  for (let raw of text.split('\n')) {
+    const line = raw.trimEnd();
+    const trimmed = line.trim();
+    if (!trimmed) { cur = null; continue; }
+
+    // Relation line
+    const rm = trimmed.match(REL_RE);
+    if (rm) {
+      rels.push({ from: rm[1], type: rm[2], to: rm[3], label: rm[4] || '' });
+      cur = null;
+      continue;
+    }
+
+    // Class header
+    if (trimmed.startsWith('class ')) {
+      cur = { name: trimmed.slice(6).trim(), stereo: '', members: [] };
+      classes.push(cur);
+      continue;
+    }
+
+    // Stereotype
+    if (cur && trimmed.startsWith('«') && trimmed.endsWith('»')) {
+      cur.stereo = trimmed;
+      continue;
+    }
+
+    // Member
+    if (cur) {
+      cur.members.push(trimmed);
+    }
+  }
+
+  return { classes, rels };
+}
+
+// ── Layout ──────────────────────────────────────────────
+function layoutClasses(parsed, ctx, c) {
+  const cls = parsed.classes;
+  if (!cls.length) return [];
+
+  // Measure each class box
+  ctx.font = `${c.fs}px ${c.font}`;
+  cls.forEach(cl => {
+    // width = max of (name, stereo, members)
+    const all = [cl.name, cl.stereo, ...cl.members];
+    cl.w = Math.max(c.minw, ...all.map(t => ctx.measureText(t).width + c.padx * 2));
+
+    // height = header section + members section
+    const headerRows = 1 + (cl.stereo ? 1 : 0);
+    const memberRows = cl.members.length || 0;
+    cl.headerH = headerRows * c.rowh + 10;
+    cl.bodyH   = memberRows ? (memberRows * c.rowh + 8) : 0;
+    cl.h = cl.headerH + cl.bodyH;
+  });
+
+  // Simple grid layout: try roughly sqrt cols
+  const cols = Math.max(1, Math.ceil(Math.sqrt(cls.length)));
+  cls.forEach((cl, i) => {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    // x: sum of previous col widths + gaps
+    let x = c.pad;
+    for (let j = col - 1; j >= 0; j--) {
+      x += (cls[j] ? cls[j].w : 0) + c.gapx; // rough
+    }
+    // Better: accumulate per column
+    cl._col = col;
+    cl._row = row;
+  });
+
+  // Compute max width per column, max height per row
+  const colW = {};
+  const rowH = {};
+  cls.forEach(cl => {
+    colW[cl._col] = Math.max(colW[cl._col] || 0, cl.w);
+    rowH[cl._row] = Math.max(rowH[cl._row] || 0, cl.h);
+  });
+
+  // Assign positions
+  const colX = {};
+  let cx = c.pad;
+  for (let col = 0; col < cols; col++) {
+    colX[col] = cx;
+    cx += (colW[col] || 0) + c.gapx;
+  }
+  const rowY = {};
+  let ry = c.pad;
+  const rows = Math.ceil(cls.length / cols);
+  for (let row = 0; row < rows; row++) {
+    rowY[row] = ry;
+    ry += (rowH[row] || 0) + c.gapy;
+  }
+
+  cls.forEach(cl => {
+    cl.x = colX[cl._col];
+    cl.y = rowY[cl._row];
+  });
+
+  return cls;
+}
+
+// ── Draw ─────────────────────────────────────────────────
+function drawClassBox(ctx, cl, c) {
+  const { x, y, w, headerH, bodyH, h } = cl;
+  ctx.lineWidth = c.lw;
+
+  // Header fill
+  ctx.fillStyle = c.chead;
+  ctx.fillRect(x, y, w, headerH);
+
+  // Body fill
+  if (bodyH > 0) {
+    ctx.fillStyle = c.cbody;
+    ctx.fillRect(x, y + headerH, w, bodyH);
+  }
+
+  // Outline
+  ctx.strokeStyle = c.cline;
+  ctx.strokeRect(x, y, w, h);
+  if (bodyH > 0) {
+    ctx.beginPath();
+    ctx.moveTo(x, y + headerH);
+    ctx.lineTo(x + w, y + headerH);
+    ctx.stroke();
+  }
+
+  ctx.font = `${c.fs}px ${c.font}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Stereo
+  let textY = y + 7 + c.rowh / 2;
+  if (cl.stereo) {
+    ctx.fillStyle = c.cheadt;
+    ctx.font = `${c.fs - 1}px ${c.font}`;
+    ctx.fillText(cl.stereo, x + w / 2, textY);
+    textY += c.rowh;
+    ctx.font = `bold ${c.fs}px ${c.font}`;
+  } else {
+    ctx.font = `bold ${c.fs}px ${c.font}`;
+  }
+
+  // Class name
+  ctx.fillStyle = c.cheadt;
+  ctx.fillText(cl.name, x + w / 2, textY);
+
+  // Members
+  if (bodyH > 0) {
+    ctx.font = `${c.fs}px ${c.font}`;
+    ctx.textAlign = 'left';
+    ctx.fillStyle = c.ctext;
+    cl.members.forEach((m, i) => {
+      ctx.fillText(m, x + c.padx, y + headerH + 6 + c.rowh * i + c.rowh / 2);
+    });
+  }
+}
+
+// Arrow heads
+function drawArrowHead(ctx, x, y, angle, filled, c) {
+  const size = 9;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = c.cline;
+  ctx.fillStyle = filled ? c.cline : c.cbg;
+  ctx.lineWidth = c.lw;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-size, -size / 2);
+  ctx.lineTo(-size, size / 2);
+  ctx.closePath();
+  filled ? ctx.fill() : ctx.stroke();
+  ctx.restore();
+}
+function drawDiamond(ctx, x, y, angle, filled, c) {
+  const s = 8;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = c.cline;
+  ctx.fillStyle = filled ? c.cline : c.cbg;
+  ctx.lineWidth = c.lw;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-s, -s / 2);
+  ctx.lineTo(-s * 2, 0);
+  ctx.lineTo(-s, s / 2);
+  ctx.closePath();
+  filled ? ctx.fill() : ctx.stroke();
+  ctx.restore();
+}
+function drawInheritHead(ctx, x, y, angle, c) {
+  const s = 10;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle);
+  ctx.strokeStyle = c.cline;
+  ctx.fillStyle = c.cbg;
+  ctx.lineWidth = c.lw;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(-s, -s * 0.6);
+  ctx.lineTo(-s, s * 0.6);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  ctx.restore();
+}
+
+function drawRelation(ctx, rel, cls, c) {
+  const from = cls.find(cl => cl.name === rel.from);
+  const to   = cls.find(cl => cl.name === rel.to);
+  if (!from || !to) return;
+
+  // Connect nearest edges
+  const fx = from.x + from.w / 2, fy = from.y + from.h / 2;
+  const tx = to.x + to.w / 2,     ty = to.y + to.h / 2;
+
+  // Find intersection with box edges
+  function boxEdge(box, ox, oy) {
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    const dx = ox - cx, dy = oy - cy;
+    if (dx === 0 && dy === 0) return { x: cx, y: cy };
+    const scaleX = (box.w / 2) / Math.abs(dx || 0.001);
+    const scaleY = (box.h / 2) / Math.abs(dy || 0.001);
+    const scale = Math.min(scaleX, scaleY);
+    return { x: cx + dx * scale, y: cy + dy * scale };
+  }
+
+  const p1 = boxEdge(from, tx, ty);
+  const p2 = boxEdge(to, fx, fy);
+
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x);
+  const dashed = rel.type.startsWith('..');
+
+  ctx.save();
+  ctx.strokeStyle = c.cline;
+  ctx.lineWidth = c.lw;
+  if (dashed) { ctx.setLineDash([5, 3]); }
+  ctx.beginPath();
+  ctx.moveTo(p1.x, p1.y);
+  ctx.lineTo(p2.x, p2.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Arrow / head at p2
+  const t = rel.type;
+  if (t === '-->' || t === '..>') {
+    drawArrowHead(ctx, p2.x, p2.y, angle, true, c);
+  } else if (t === '--|>' || t === '..|>') {
+    drawInheritHead(ctx, p2.x, p2.y, angle, c);
+  } else if (t === '--*') {
+    drawDiamond(ctx, p1.x, p1.y, angle + Math.PI, true, c);
+  } else if (t === '--o') {
+    drawDiamond(ctx, p1.x, p1.y, angle + Math.PI, false, c);
+  }
+
+  // Label
+  if (rel.label) {
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    ctx.font = `${c.fs - 1}px ${c.font}`;
+    ctx.fillStyle = c.ctext;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    // tiny bg
+    const tw = ctx.measureText(rel.label).width;
+    ctx.fillStyle = c.cbg;
+    ctx.fillRect(mx - tw / 2 - 2, my - c.fs - 1, tw + 4, c.fs + 2);
+    ctx.fillStyle = c.ctext;
+    ctx.fillText(rel.label, mx, my - 2);
+  }
+}
+
+function renderClass() {
+  const text = g('input-class').value.trim();
+  if (!text) return;
+  const parsed = parseClass(text);
+  if (!parsed.classes.length) { showErr('没有找到类定义，请检查语法'); return; }
+
+  const c = cfg();
+  const canvas = g('diagram-canvas');
+  const tmpCtx = document.createElement('canvas').getContext('2d');
+  tmpCtx.font = `${c.fs}px ${c.font}`;
+
+  const cls = layoutClasses(parsed, tmpCtx, c);
+
+  // Compute canvas size
+  const maxX = Math.max(...cls.map(cl => cl.x + cl.w)) + c.pad;
+  const maxY = Math.max(...cls.map(cl => cl.y + cl.h)) + c.pad;
+
+  const ctx = setupCanvas(canvas, maxX, maxY);
+  ctx.fillStyle = c.cbg;
+  ctx.fillRect(0, 0, maxX, maxY);
+
+  // Draw relations first (behind boxes)
+  parsed.rels.forEach(r => drawRelation(ctx, r, cls, c));
+  // Draw boxes
+  cls.forEach(cl => drawClassBox(ctx, cl, c));
+}
+
+// ═══════════════════════════════════════════════════════
+//  ████████  SEQUENCE DIAGRAM
+// ═══════════════════════════════════════════════════════
+
+function parseSeq(text) {
+  const actors = [];
+  const steps  = [];
+  const actorSet = new Set();
+
+  const MSG_RE = /^(\S+)\s+(->|-->)\s+(\S+)\s*:\s*(.+)$/;
+  const NOTE_RE = /^note\s*:\s*(.+)$/i;
+  const SEP_RE  = /^==\s*(.+?)\s*==$/;
+  const PART_RE = /^participant\s+(.+)$/i;
+
+  for (const raw of text.split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    const pm = line.match(PART_RE);
+    if (pm) {
+      if (!actorSet.has(pm[1])) { actors.push(pm[1]); actorSet.add(pm[1]); }
+      continue;
+    }
+    const mm = line.match(MSG_RE);
+    if (mm) {
+      [mm[1], mm[3]].forEach(a => { if (!actorSet.has(a)) { actors.push(a); actorSet.add(a); } });
+      steps.push({ type: 'msg', from: mm[1], arrow: mm[2], to: mm[3], label: mm[4] });
+      continue;
+    }
+    const nm = line.match(NOTE_RE);
+    if (nm) { steps.push({ type: 'note', label: nm[1] }); continue; }
+    const sm = line.match(SEP_RE);
+    if (sm) { steps.push({ type: 'sep', label: sm[1] }); continue; }
+  }
+  return { actors, steps };
+}
+
+function renderSeq() {
+  const text = g('input-seq').value.trim();
+  if (!text) return;
+  const parsed = parseSeq(text);
+  if (!parsed.actors.length) { showErr('没有找到角色定义，请检查语法'); return; }
+
+  const c = cfg();
+  const canvas = g('diagram-canvas');
+
+  const actors = parsed.actors;
+  const steps  = parsed.steps;
+
+  // Geometry
+  const colW  = c.col;   // center-to-center spacing
+  const rowH  = c.row;
+  const actW  = c.aw;
+  const actH  = c.ah;
+  const pad   = c.pad;
+  const fs    = c.fs;
+
+  // Actor x centers
+  const ax = {};
+  actors.forEach((a, i) => { ax[a] = pad + actW / 2 + i * colW; });
+
+  // Total width
+  const totalW = pad + actors.length * actW + (actors.length - 1) * (colW - actW) + pad;
+
+  // Pre-measure step heights
+  const stepH = steps.map(s => {
+    if (s.type === 'note' || s.type === 'sep') return rowH * 0.8;
+    return rowH;
+  });
+  const totalStepsH = stepH.reduce((a, b) => a + b, 0);
+  const totalH = pad + actH + 12 + totalStepsH + actH + pad;
+
+  const ctx = setupCanvas(canvas, totalW, totalH);
+  ctx.fillStyle = c.cbg;
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  // Draw lifelines
+  const lifeTop = pad + actH;
+  const lifeBot = totalH - pad - actH;
+  ctx.save();
+  ctx.strokeStyle = c.cline;
+  ctx.lineWidth = c.lw;
+  ctx.setLineDash([5, 4]);
+  actors.forEach(a => {
+    ctx.beginPath();
+    ctx.moveTo(ax[a], lifeTop);
+    ctx.lineTo(ax[a], lifeBot);
+    ctx.stroke();
+  });
+  ctx.setLineDash([]);
+  ctx.restore();
+
+  // Draw actor boxes (top + bottom)
+  function drawActor(cx, y) {
+    const x = cx - actW / 2;
+    ctx.fillStyle = c.cactor;
+    ctx.strokeStyle = c.cline;
+    ctx.lineWidth = c.lw;
+    ctx.fillRect(x, y, actW, actH);
+    ctx.strokeRect(x, y, actW, actH);
+  }
+  function drawActorLabel(cx, y, name) {
+    ctx.font = `bold ${fs}px ${c.font}`;
+    ctx.fillStyle = c.cactort;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, cx, y + actH / 2);
+  }
+
+  actors.forEach(a => {
+    drawActor(ax[a], pad);
+    drawActor(ax[a], lifeBot);
+    drawActorLabel(ax[a], pad, a);
+    drawActorLabel(ax[a], lifeBot, a);
+  });
+
+  // Draw steps
+  let curY = pad + actH + 12;
+
+  steps.forEach((s, i) => {
+    const h = stepH[i];
+    const midY = curY + h / 2;
+
+    if (s.type === 'msg') {
+      const fx = ax[s.from], tx = ax[s.to];
+      const dashed = s.arrow === '-->';
+
+      ctx.save();
+      ctx.strokeStyle = c.cline;
+      ctx.lineWidth = c.lw;
+      if (dashed) ctx.setLineDash([5, 3]);
+      ctx.beginPath();
+      ctx.moveTo(fx, midY);
+      ctx.lineTo(tx, midY);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Arrowhead
+      const dir = tx > fx ? 1 : -1;
+      const as = 7;
+      ctx.fillStyle = c.cline;
+      ctx.beginPath();
+      ctx.moveTo(tx, midY);
+      ctx.lineTo(tx - dir * as, midY - as / 2);
+      ctx.lineTo(tx - dir * as, midY + as / 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+
+      // Label
+      if (s.label) {
+        const mx = (fx + tx) / 2;
+        ctx.font = `${fs}px ${c.font}`;
+        ctx.fillStyle = c.ctext;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        const tw = ctx.measureText(s.label).width;
+        ctx.fillStyle = c.cbg;
+        ctx.fillRect(mx - tw / 2 - 2, midY - fs - 3, tw + 4, fs + 2);
+        ctx.fillStyle = c.ctext;
+        ctx.fillText(s.label, mx, midY - 3);
+      }
+
+    } else if (s.type === 'note') {
+      const noteW = totalW - pad * 2;
+      const noteH = h - 6;
+      const nx = pad, ny = curY + 3;
+      ctx.fillStyle = c.cnote;
+      ctx.strokeStyle = c.cline;
+      ctx.lineWidth = c.lw;
+      ctx.fillRect(nx, ny, noteW, noteH);
+      ctx.strokeRect(nx, ny, noteW, noteH);
+      ctx.font = `italic ${fs}px ${c.font}`;
+      ctx.fillStyle = c.ctext;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(s.label, nx + noteW / 2, ny + noteH / 2);
+
+    } else if (s.type === 'sep') {
+      const sy = midY;
+      ctx.save();
+      ctx.strokeStyle = c.cline;
+      ctx.lineWidth = c.lw;
+      ctx.setLineDash([6, 3]);
+      ctx.beginPath();
+      ctx.moveTo(pad, sy);
+      ctx.lineTo(totalW - pad, sy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.font = `${fs}px ${c.font}`;
+      ctx.fillStyle = c.ctext;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const lw2 = ctx.measureText(s.label).width;
+      ctx.fillStyle = c.cbg;
+      ctx.fillRect(totalW / 2 - lw2 / 2 - 6, sy - fs / 2 - 2, lw2 + 12, fs + 4);
+      ctx.fillStyle = c.ctext;
+      ctx.fillText(s.label, totalW / 2, sy);
+      ctx.restore();
+    }
+
+    curY += h;
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  MAIN RENDER
+// ═══════════════════════════════════════════════════════
+function render() {
+  try {
+    if (MODE === 'class') renderClass();
+    else renderSeq();
+  } catch(e) {
+    showErr('渲染错误: ' + e.message);
+    console.error(e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  COPY / DOWNLOAD
+// ═══════════════════════════════════════════════════════
+async function copyImage() {
+  const canvas = g('diagram-canvas');
+  try {
+    canvas.toBlob(async blob => {
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      const btn = g('btn-copy');
+      btn.textContent = '✅ 已复制';
+      setTimeout(() => btn.textContent = '📋 复制图片', 2000);
+    });
+  } catch(e) { alert('复制失败，请使用下载。\n' + e.message); }
+}
+function downloadImage() {
+  const canvas = g('diagram-canvas');
+  const a = document.createElement('a');
+  a.download = MODE === 'class' ? '类图.png' : '时序图.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESET
+// ═══════════════════════════════════════════════════════
+function resetDefaults() {
+  g('input-class').value = DEFAULT_CLASS;
+  g('input-seq').value   = DEFAULT_SEQ;
+
+  const defs = {
+    'c-gapx':60,'c-gapy':40,'c-minw':140,'c-rowh':22,'c-padx':12,
+    's-col':140,'s-row':44,'s-aw':110,'s-ah':32,
+    'g-fs':12,'g-lw':1,'g-pad':40,
+  };
+  Object.entries(defs).forEach(([id, val]) => {
+    const el = g(id); if (el) el.value = val;
+  });
+  // update labels
+  document.querySelectorAll('input[type=range]').forEach(inp => {
+    const key = inp.id.replace(/^[csg][-_]/, '');
+    const el = g('v-' + key);
+    if (el) el.textContent = inp.value;
+  });
+  render();
+}
+
+// ═══════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════
+g('input-class').addEventListener('input', render);
+g('input-seq').addEventListener('input', render);
+
+// Tab key
+[g('input-class'), g('input-seq')].forEach(ta => {
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = ta.selectionStart;
+      ta.value = ta.value.slice(0, s) + '  ' + ta.value.slice(ta.selectionEnd);
+      ta.selectionStart = ta.selectionEnd = s + 2;
+      render();
+    }
+  });
+});
+
+g('input-class').value = DEFAULT_CLASS;
+g('input-seq').value   = DEFAULT_SEQ;
+render();
+</script>
+</body>
+</html>
