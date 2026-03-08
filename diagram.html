@@ -341,47 +341,40 @@ function setMode(m) {
 // ═══════════════════════════════════════════════════════
 //  DEFAULT TEXTS
 // ═══════════════════════════════════════════════════════
-const DEFAULT_CLASS = `class ResManager
-«singleton»
--mHandles : Dictionary<string, Handle>
+const DEFAULT_CLASS = `class MonoBehaviour «Unity»
+class ResManager «singleton»
++Instance : ResManager
 +currentMode : LoadModeEnum
+-mHandles : Dictionary<string, AsyncOperationHandle>
 +Load<T>(path) : T
 +LoadAsync<T>(path, callback)
-+LoadAsyncByResources<T>(path, callback)
-+LoadAsyncByAddressables<T>(path, callback)
 +Unload(obj : GameObject)
 +ReleasePrefab(go : GameObject)
 +ReleaseAsset(path : string)
-
-class ObjectPool
-«singleton»
--mPoolDict : Dictionary<string, Queue>
+class ObjectPool «singleton»
++Instance : ObjectPool
+-mPoolDict : Dictionary<string, Queue<GameObject>>
 +InitPool(prefabPath, count) : Task
 +Get(key) : GameObject
 +Return(key, obj)
-
-class BulletBase
-«MonoBehaviour»
+class BulletBase «MonoBehaviour»
 #mPrefabPath : string
 +Init(cfg : BulletConfig)
 -OnTriggerEnter2D()
-
-class EventManager
-«singleton»
+class EventManager «singleton»
++Instance : EventManager
 +AddListener(event, callback)
 +Trigger(event, data)
 +RemoveListener(event, callback)
-
-class LoadModeEnum
-«enum»
+class LoadModeEnum «enum»
 Resources
 Addressables
-
-ResManager --> ObjectPool : 被使用
+ResManager --|> MonoBehaviour
+BulletBase --|> MonoBehaviour
 ResManager ..> LoadModeEnum : 依赖
-ObjectPool ..> ResManager : 调用Load
-BulletBase ..> ObjectPool : Get/Return
-BulletBase ..> EventManager : Trigger`;
+ObjectPool ..> ResManager : 调用Load获取预制体
+BulletBase ..> ObjectPool : Get/Return 实例
+BulletBase ..> EventManager : Trigger 击中/死亡事件`;
 
 const DEFAULT_SEQ = `participant Caller
 participant ResManager
@@ -481,6 +474,8 @@ function wrapText(ctx, text, maxW) {
 // ── Parser ──────────────────────────────────────────────
 // Relation pattern: A --> B, A --* B, A --o B, A --|> B, A ..|> B, A ..> B
 const REL_RE = /^(\S+)\s+(-->|--\*|--o|--\|>|\.\.\|>|\.\.>)\s+(\S+)(?:\s*:\s*(.+))?$/;
+// Matches: class Foo  OR  class Foo «stereo»
+const CLASS_RE = /^class\s+(\S+)(?:\s+(«[^»]+»))?/;
 
 function parseClass(text) {
   const classes = [];
@@ -488,32 +483,31 @@ function parseClass(text) {
   let cur = null;
 
   for (let raw of text.split('\n')) {
-    const line = raw.trimEnd();
-    const trimmed = line.trim();
-    if (!trimmed) { cur = null; continue; }
+    const trimmed = raw.trim();
+    if (!trimmed) continue;  // skip blank lines but don't reset cur
 
-    // Relation line
+    // Relation line (check before class so "class" in label doesn't confuse)
     const rm = trimmed.match(REL_RE);
     if (rm) {
       rels.push({ from: rm[1], type: rm[2], to: rm[3], label: rm[4] || '' });
-      cur = null;
       continue;
     }
 
-    // Class header
-    if (trimmed.startsWith('class ')) {
-      cur = { name: trimmed.slice(6).trim(), stereo: '', members: [] };
+    // Class header  — "class Foo" or "class Foo «stereo»"
+    const cm = trimmed.match(CLASS_RE);
+    if (cm) {
+      cur = { name: cm[1], stereo: cm[2] || '', members: [] };
       classes.push(cur);
       continue;
     }
 
-    // Stereotype
+    // Standalone stereotype on its own line (old format still works)
     if (cur && trimmed.startsWith('«') && trimmed.endsWith('»')) {
       cur.stereo = trimmed;
       continue;
     }
 
-    // Member
+    // Member line (anything else while we have a current class)
     if (cur) {
       cur.members.push(trimmed);
     }
