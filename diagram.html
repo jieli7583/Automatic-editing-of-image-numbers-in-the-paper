@@ -1000,24 +1000,52 @@ function render() {
 }
 
 // ═══════════════════════════════════════════════════════
-//  COPY / DOWNLOAD
+//  HIGH-RES EXPORT
 // ═══════════════════════════════════════════════════════
+// The on-screen canvas is already scaled by devicePixelRatio for sharp display,
+// but toDataURL() exports raw physical pixels — on a non-Retina display that's
+// just 1x, and on Retina the receiver doesn't know it's 2x so it looks blurry.
+// Solution: re-draw onto a fresh off-screen canvas at a fixed EXPORT_SCALE,
+// independent of the screen DPR, so the exported PNG is always crisp.
+const EXPORT_SCALE = 3;
+
+function buildHiResCanvas() {
+  const src = g('diagram-canvas');
+  const dpr = window.devicePixelRatio || 1;
+  // src.width / dpr = logical width; multiply by EXPORT_SCALE for final pixels
+  const logicalW = src.width  / dpr;
+  const logicalH = src.height / dpr;
+
+  const off = document.createElement('canvas');
+  off.width  = Math.round(logicalW * EXPORT_SCALE);
+  off.height = Math.round(logicalH * EXPORT_SCALE);
+
+  const ctx = off.getContext('2d');
+  // Fill background (avoids transparent PNG on some apps)
+  ctx.fillStyle = g('g-cbg').value || '#ffffff';
+  ctx.fillRect(0, 0, off.width, off.height);
+  // Scale up and draw the source canvas
+  ctx.drawImage(src, 0, 0, off.width, off.height);
+  return off;
+}
+
 async function copyImage() {
-  const canvas = g('diagram-canvas');
   try {
-    canvas.toBlob(async blob => {
+    const off = buildHiResCanvas();
+    off.toBlob(async blob => {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
       const btn = g('btn-copy');
-      btn.textContent = '✅ 已复制';
+      btn.textContent = '✅ 已复制 (3x)';
       setTimeout(() => btn.textContent = '📋 复制图片', 2000);
-    });
+    }, 'image/png');
   } catch(e) { alert('复制失败，请使用下载。\n' + e.message); }
 }
+
 function downloadImage() {
-  const canvas = g('diagram-canvas');
+  const off = buildHiResCanvas();
   const a = document.createElement('a');
-  a.download = MODE === 'class' ? '类图.png' : '时序图.png';
-  a.href = canvas.toDataURL('image/png');
+  a.download = MODE === 'class' ? '类图@3x.png' : '时序图@3x.png';
+  a.href = off.toDataURL('image/png');
   a.click();
 }
 
