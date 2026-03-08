@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>树形图生成器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f0f0f0;
+  --panel: #ffffff;
+  --border: #d8d8d8;
+  --accent: #1a1a1a;
+  --muted: #888;
+  --input-bg: #f8f8f8;
+  --sans: 'Noto Sans SC', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  background: var(--bg);
+  font-family: var(--sans);
+  color: var(--accent);
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  grid-template-columns: 300px 1fr;
+}
+
+/* ── Top bar ── */
+header {
+  grid-column: 1 / -1;
+  background: var(--accent);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 16px;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: .02em;
+}
+header .logo { font-family: var(--mono); font-size: 13px; opacity: .9; }
+header .sep { opacity: .2; }
+header .sub { opacity: .5; font-size: 12px; font-weight: 400; }
+header .actions { margin-left: auto; display: flex; gap: 8px; }
+
+.btn {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all .15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.btn-ghost { background: rgba(255,255,255,.1); color: #fff; }
+.btn-ghost:hover { background: rgba(255,255,255,.2); }
+.btn-primary { background: #fff; color: var(--accent); }
+.btn-primary:hover { background: #e8e8e8; }
+.btn-success { background: #2d7d46; color: #fff; }
+.btn-success:hover { background: #246038; }
+.btn-success.copied { background: #1a5c33; }
+
+/* ── Left panel ── */
+aside {
+  background: var(--panel);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+textarea {
+  width: 100%;
+  min-height: 220px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--accent);
+  resize: vertical;
+  outline: none;
+  tab-size: 2;
+}
+textarea:focus { border-color: #aaa; }
+
+.hint {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 6px;
+  line-height: 1.5;
+}
+.hint code {
+  font-family: var(--mono);
+  background: #f0f0f0;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* Controls */
+.control-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.control-label {
+  font-size: 12px;
+  color: var(--accent);
+  min-width: 70px;
+}
+.control-val {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: right;
+}
+
+input[type=range] {
+  flex: 1;
+  margin: 0 10px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.color-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+input[type=color] {
+  width: 32px; height: 24px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 1px;
+}
+
+select {
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--input-bg);
+  font-family: var(--sans);
+  font-size: 12px;
+  color: var(--accent);
+  outline: none;
+  cursor: pointer;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 12px;
+}
+.toggle {
+  position: relative;
+  width: 36px; height: 20px;
+}
+.toggle input { opacity: 0; width: 0; height: 0; }
+.toggle-slider {
+  position: absolute; inset: 0;
+  background: #ccc; border-radius: 20px;
+  cursor: pointer; transition: .2s;
+}
+.toggle-slider::before {
+  content: '';
+  position: absolute;
+  width: 14px; height: 14px;
+  left: 3px; top: 3px;
+  background: #fff; border-radius: 50%;
+  transition: .2s;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+
+/* ── Canvas area ── */
+main {
+  overflow: auto;
+  padding: 32px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: #e8e8e8;
+  background-image: radial-gradient(circle, #ccc 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+#canvas-wrap {
+  background: #fff;
+  box-shadow: 0 4px 24px rgba(0,0,0,.12);
+  display: inline-block;
+  position: relative;
+}
+
+#tree-canvas {
+  display: block;
+  padding: 40px 48px;
+}
+
+/* ── Tree styles (rendered inside canvas) ── */
+.tree-root {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  font-family: var(--sans);
+}
+
+.tree-node {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+
+.node-label {
+  border: 1px solid #000;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  position: relative;
+}
+
+.node-children {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  position: relative;
+}
+
+.child-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  position: relative;
+}
+
+/* SVG connector lines drawn by JS */
+.connector-svg {
+  position: absolute;
+  top: 0; left: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">树形图生成器</span>
+  <span class="sep">|</span>
+  <span class="sub">粘贴层级文本 → 实时渲染</span>
+  <div class="actions">
+    <button class="btn btn-ghost" onclick="resetDefaults()">重置</button>
+    <button class="btn btn-primary" onclick="copyImage()" id="btn-copy">📋 复制图片</button>
+    <button class="btn btn-success" onclick="downloadImage()" id="btn-dl">⬇ 下载 PNG</button>
+  </div>
+</header>
+
+<aside>
+  <!-- Input -->
+  <div class="section">
+    <div class="section-title">输入文本</div>
+    <textarea id="input" spellcheck="false" placeholder="史前生存经营游戏
+  场景界面
+    主菜单
+    存档槽位选择
+    角色创建
+  玩家
+    移动与交互
+    工具使用"></textarea>
+    <p class="hint">
+      用缩进表示层级，支持空格或 <code>Tab</code>。<br>
+      每2个空格 = 1级。
+    </p>
+  </div>
+
+  <!-- Layout -->
+  <div class="section">
+    <div class="section-title">布局</div>
+
+    <div class="control-row">
+      <span class="control-label">节点间距</span>
+      <input type="range" id="s-gap" min="4" max="40" value="12" oninput="render()">
+      <span class="control-val" id="v-gap">12</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">水平间距</span>
+      <input type="range" id="s-hgap" min="20" max="100" value="48" oninput="render()">
+      <span class="control-val" id="v-hgap">48</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">节点高度</span>
+      <input type="range" id="s-nh" min="18" max="60" value="28" oninput="render()">
+      <span class="control-val" id="v-nh">28</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">节点最小宽</span>
+      <input type="range" id="s-nw" min="40" max="200" value="80" oninput="render()">
+      <span class="control-val" id="v-nw">80</span>
+    </div>
+    <div class="control-row">
+      <span class="control-label">节点内边距</span>
+      <input type="range" id="s-px" min="4" max="32" value="12" oninput="render()">
+      <span class="control-val" id="v-px">12</span>
+    </div>
+  </div>
+
+  <!-- Typography -->
+  <div class="section">
+    <div class="section-title">字体</div>
+    <select id="s-font" onchange="render()">
+      <option value="Noto Sans SC, sans-serif">Noto Sans SC（推荐）</option>
+      <option value="SimSun, serif">宋体</option>
+      <option value="SimHei, sans-serif">黑体</option>
+      <option value="KaiTi, serif">楷体</option>
+      <option value="Arial, sans-serif">Arial</option>
+    </select>
+    <div class="control-row">
+      <span class="control-label">字体大小</span>
+      <input type="range" id="s-fs" min="8" max="24" value="13" oninput="render()">
+      <span class="control-val" id="v-fs">13</span>
+    </div>
+  </div>
+
+  <!-- Lines -->
+  <div class="section">
+    <div class="section-title">连接线</div>
+    <div class="control-row">
+      <span class="control-label">线条粗细</span>
+      <input type="range" id="s-lw" min="0.5" max="4" step="0.5" value="1" oninput="render()">
+      <span class="control-val" id="v-lw">1</span>
+    </div>
+    <div class="toggle-row">
+      <span>直角折线</span>
+      <label class="toggle"><input type="checkbox" id="s-elbow" checked onchange="render()"><span class="toggle-slider"></span></label>
+    </div>
+  </div>
+
+  <!-- Colors -->
+  <div class="section">
+    <div class="section-title">颜色</div>
+    <div class="color-row">
+      <span style="font-size:12px">背景色</span>
+      <input type="color" id="c-bg" value="#ffffff" oninput="render()">
+    </div>
+    <div class="color-row">
+      <span style="font-size:12px">边框色</span>
+      <input type="color" id="c-border" value="#000000" oninput="render()">
+    </div>
+    <div class="color-row">
+      <span style="font-size:12px">文字色</span>
+      <input type="color" id="c-text" value="#000000" oninput="render()">
+    </div>
+    <div class="color-row">
+      <span style="font-size:12px">连线色</span>
+      <input type="color" id="c-line" value="#000000" oninput="render()">
+    </div>
+    <div class="color-row">
+      <span style="font-size:12px">节点填充</span>
+      <input type="color" id="c-fill" value="#ffffff" oninput="render()">
+    </div>
+  </div>
+
+  <!-- Canvas padding -->
+  <div class="section">
+    <div class="section-title">画布</div>
+    <div class="control-row">
+      <span class="control-label">内边距</span>
+      <input type="range" id="s-pad" min="8" max="80" value="40" oninput="render()">
+      <span class="control-val" id="v-pad">40</span>
+    </div>
+  </div>
+</aside>
+
+<main>
+  <div id="canvas-wrap">
+    <canvas id="tree-canvas"></canvas>
+  </div>
+</main>
+
+<script>
+// ─── Default data ──────────────────────────────────────────────────────────
+const DEFAULT_TEXT = `史前生存经营游戏
+  场景界面
+    主菜单
+    存档槽位选择
+    角色创建
+  玩家
+    移动与交互
+    工具使用
+    受伤/死亡重生
+    睡眠恢复
+  作物种植
+    翻地/播种/浇水
+    生长与收获
+    枯萎机制
+    雨天免浇水
+  时间天气季节
+    昼夜时间推进
+    晴雨天气切换
+    季节地图更换
+  战斗与采集
+    野兽追踪与战斗
+    资源节点采集
+    掉落物拾取
+  背包与合成
+    物品堆叠/拖拽/丢弃
+    配方合成
+    快捷工具栏
+    宝箱交互
+  NPC交互交易
+    对话与剧情推进
+    买入物品
+    卖出物品
+  音效系统
+    背景音乐
+    交互/战斗音效
+    音量设置
+  存档系统
+    JSON数据持久化
+    多存档槽位
+    跨场景数据恢复`;
+
+document.getElementById('input').value = DEFAULT_TEXT;
+
+// ─── Parse indented text ───────────────────────────────────────────────────
+function parseTree(text) {
+  const lines = text.split('\n').filter(l => l.trim());
+  if (!lines.length) return null;
+
+  function getIndent(line) {
+    const match = line.match(/^(\s*)/);
+    const s = match[1];
+    // count tabs as 2 spaces
+    let count = 0;
+    for (const c of s) count += c === '\t' ? 2 : 1;
+    return count;
+  }
+
+  // Normalize indent to levels
+  const indents = lines.map(getIndent);
+  const minStep = indents.filter(x => x > 0).reduce((a, b) => {
+    if (a === 0) return b;
+    return Math.min(a, b);
+  }, 0) || 2;
+
+  function buildTree(start, parentIndent) {
+    const nodes = [];
+    let i = start;
+    while (i < lines.length) {
+      const indent = indents[i];
+      if (indent <= parentIndent) break;
+      if (indent === indents[start]) {
+        const node = { label: lines[i].trim(), children: [] };
+        i++;
+        // collect children (deeper indent)
+        while (i < lines.length && indents[i] > indent) {
+          const child = buildTree(i, indent);
+          node.children.push(...child.nodes);
+          i = child.next;
+        }
+        nodes.push(node);
+      } else {
+        i++;
+      }
+    }
+    return { nodes, next: i };
+  }
+
+  const rootIndent = indents[0];
+  const root = { label: lines[0].trim(), children: [] };
+  const result = buildTree(1, rootIndent);
+  root.children = result.nodes;
+  return root;
+}
+
+// ─── Config getters ────────────────────────────────────────────────────────
+function cfg() {
+  const g = id => document.getElementById(id);
+  const n = id => parseFloat(g(id).value);
+  return {
+    vGap:    n('s-gap'),
+    hGap:    n('s-hgap'),
+    nodeH:   n('s-nh'),
+    nodeMinW: n('s-nw'),
+    padX:    n('s-px'),
+    fontSize: n('s-fs'),
+    font:    g('s-font').value,
+    lineW:   n('s-lw'),
+    elbow:   g('s-elbow').checked,
+    bgColor: g('c-bg').value,
+    borderColor: g('c-border').value,
+    textColor: g('c-text').value,
+    lineColor: g('c-line').value,
+    fillColor: g('c-fill').value,
+    pad:     n('s-pad'),
+  };
+}
+
+// Update value displays
+document.querySelectorAll('input[type=range]').forEach(inp => {
+  inp.addEventListener('input', () => {
+    const valEl = document.getElementById('v-' + inp.id.replace('s-',''));
+    if (valEl) valEl.textContent = inp.value;
+  });
+});
+
+// ─── Layout engine ─────────────────────────────────────────────────────────
+// We compute layout on a virtual canvas, then draw on real canvas.
+
+function measureText(ctx, label, c) {
+  ctx.font = `${c.fontSize}px ${c.font}`;
+  return Math.max(c.nodeMinW, ctx.measureText(label).width + c.padX * 2);
+}
+
+// Layout: assign x,y,w,h to each node (top-left origin)
+// Returns total height of subtree
+function layout(node, ctx, c, x, y) {
+  const w = measureText(ctx, node.label, c);
+  const h = c.nodeH;
+
+  if (!node.children.length) {
+    node._x = x; node._y = y; node._w = w; node._h = h;
+    node._totalH = h;
+    return h;
+  }
+
+  // Layout children first
+  let cy = y;
+  let maxChildW = 0;
+  for (const child of node.children) {
+    const ch = layout(child, ctx, c, x + w + c.hGap, cy);
+    maxChildW = Math.max(maxChildW, child._w);
+    cy += ch + c.vGap;
+  }
+  cy -= c.vGap;
+
+  const totalH = cy - y;
+
+  // Center this node vertically over children
+  node._x = x;
+  node._y = y + (totalH - h) / 2;
+  node._w = w;
+  node._h = h;
+  node._totalH = totalH;
+
+  return totalH;
+}
+
+function totalWidth(node) {
+  if (!node.children.length) return node._w;
+  const childrenMaxX = node.children.reduce((m, c) => Math.max(m, c._x + totalWidth(c)), 0);
+  return childrenMaxX - node._x;
+}
+
+// ─── Draw ──────────────────────────────────────────────────────────────────
+function drawNode(ctx, node, c) {
+  // Box
+  ctx.fillStyle = c.fillColor;
+  ctx.strokeStyle = c.borderColor;
+  ctx.lineWidth = c.lineW;
+  ctx.beginPath();
+  ctx.rect(node._x, node._y, node._w, node._h);
+  ctx.fill();
+  ctx.stroke();
+
+  // Text
+  ctx.fillStyle = c.textColor;
+  ctx.font = `${c.fontSize}px ${c.font}`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(node.label, node._x + node._w / 2, node._y + node._h / 2);
+}
+
+function drawConnectors(ctx, node, c) {
+  if (!node.children.length) return;
+
+  const px = node._x + node._w;  // right edge of parent
+  const py = node._y + node._h / 2; // mid of parent
+
+  ctx.strokeStyle = c.lineColor;
+  ctx.lineWidth = c.lineW;
+
+  if (c.elbow) {
+    // Find the mid-x point between parent and first child
+    const midX = px + c.hGap / 2;
+
+    // Vertical line from top child to bottom child at midX
+    const topChild = node.children[0];
+    const botChild = node.children[node.children.length - 1];
+    const topY = topChild._y + topChild._h / 2;
+    const botY = botChild._y + botChild._h / 2;
+
+    // Horizontal line from parent to mid
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.lineTo(midX, py);
+    ctx.stroke();
+
+    // Vertical spine
+    ctx.beginPath();
+    ctx.moveTo(midX, topY);
+    ctx.lineTo(midX, botY);
+    ctx.stroke();
+
+    // Horizontal lines to each child
+    for (const child of node.children) {
+      const cy = child._y + child._h / 2;
+      ctx.beginPath();
+      ctx.moveTo(midX, cy);
+      ctx.lineTo(child._x, cy);
+      ctx.stroke();
+    }
+  } else {
+    // Straight diagonal lines
+    for (const child of node.children) {
+      const cy = child._y + child._h / 2;
+      ctx.beginPath();
+      ctx.moveTo(px, py);
+      ctx.lineTo(child._x, cy);
+      ctx.stroke();
+    }
+  }
+}
+
+function drawTree(ctx, node, c) {
+  drawConnectors(ctx, node, c);
+  drawNode(ctx, node, c);
+  for (const child of node.children) drawTree(ctx, child, c);
+}
+
+// ─── Render ────────────────────────────────────────────────────────────────
+let lastRoot = null;
+
+function render() {
+  const text = document.getElementById('input').value;
+  const root = parseTree(text);
+  if (!root) return;
+  lastRoot = root;
+
+  const c = cfg();
+  const canvas = document.getElementById('tree-canvas');
+  const ctx = canvas.getContext('2d');
+
+  // First pass: layout with dummy canvas to measure
+  ctx.font = `${c.fontSize}px ${c.font}`;
+
+  const totalH = layout(root, ctx, c, c.pad, c.pad);
+  const totalW = totalWidth(root);
+
+  canvas.width  = totalW + c.pad * 2;
+  canvas.height = totalH + c.pad * 2;
+
+  // Clear
+  ctx.fillStyle = c.bgColor;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw
+  drawTree(ctx, root, c);
+}
+
+// ─── Copy / Download ────────────────────────────────────────────────────────
+async function copyImage() {
+  const canvas = document.getElementById('tree-canvas');
+  try {
+    canvas.toBlob(async blob => {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': blob })
+      ]);
+      const btn = document.getElementById('btn-copy');
+      btn.textContent = '✅ 已复制';
+      btn.classList.add('copied');
+      setTimeout(() => {
+        btn.textContent = '📋 复制图片';
+        btn.classList.remove('copied');
+      }, 2000);
+    });
+  } catch (e) {
+    alert('复制失败，请使用下载功能。\n' + e.message);
+  }
+}
+
+function downloadImage() {
+  const canvas = document.getElementById('tree-canvas');
+  const a = document.createElement('a');
+  a.download = '树形图.png';
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+function resetDefaults() {
+  document.getElementById('input').value = DEFAULT_TEXT;
+  document.getElementById('s-gap').value = 12;
+  document.getElementById('s-hgap').value = 48;
+  document.getElementById('s-nh').value = 28;
+  document.getElementById('s-nw').value = 80;
+  document.getElementById('s-px').value = 12;
+  document.getElementById('s-fs').value = 13;
+  document.getElementById('s-lw').value = 1;
+  document.getElementById('s-pad').value = 40;
+  document.getElementById('s-elbow').checked = true;
+  document.getElementById('c-bg').value = '#ffffff';
+  document.getElementById('c-border').value = '#000000';
+  document.getElementById('c-text').value = '#000000';
+  document.getElementById('c-line').value = '#000000';
+  document.getElementById('c-fill').value = '#ffffff';
+  // update displays
+  document.querySelectorAll('input[type=range]').forEach(inp => {
+    const valEl = document.getElementById('v-' + inp.id.replace('s-',''));
+    if (valEl) valEl.textContent = inp.value;
+  });
+  render();
+}
+
+// Tab key in textarea
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const el = e.target;
+    const s = el.selectionStart, end = el.selectionEnd;
+    el.value = el.value.slice(0, s) + '  ' + el.value.slice(end);
+    el.selectionStart = el.selectionEnd = s + 2;
+    render();
+  }
+});
+
+document.getElementById('input').addEventListener('input', render);
+
+// Initial render
+render();
+</script>
+</body>
+</html>
