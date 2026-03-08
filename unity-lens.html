@@ -1,0 +1,1223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unity Lens · 代码解读工具</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Noto+Sans+SC:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #1c2333;
+  --border: #21262d;
+  --border2: #30363d;
+  --text: #e6edf3;
+  --text-muted: #7d8590;
+  --text-dim: #484f58;
+  --accent: #58a6ff;
+  --accent-glow: rgba(88,166,255,0.15);
+  --green: #3fb950;
+  --green-dim: rgba(63,185,80,0.12);
+  --orange: #f0883e;
+  --orange-dim: rgba(240,136,62,0.12);
+  --purple: #bc8cff;
+  --purple-dim: rgba(188,140,255,0.12);
+  --red: #ff7b72;
+  --red-dim: rgba(255,123,114,0.12);
+  --yellow: #e3b341;
+  --yellow-dim: rgba(227,179,65,0.12);
+  --mono: 'JetBrains Mono', monospace;
+  --sans: 'Noto Sans SC', sans-serif;
+  --display: 'Syne', sans-serif;
+}
+
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 14px; line-height: 1.6; overflow: hidden; }
+
+/* ── App shell ── */
+.app {
+  display: grid;
+  grid-template-rows: 48px 28px 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Header ── */
+header {
+  grid-column: 1 / -1;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 14px;
+}
+.logo { font-family: var(--display); font-size: 16px; font-weight: 800; letter-spacing: -0.02em; }
+.logo span { color: var(--accent); }
+.tagline { font-size: 11px; color: var(--text-dim); border-left: 1px solid var(--border2); padding-left: 14px; }
+.header-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+.btn {
+  padding: 5px 12px; border-radius: 5px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--text); font-family: var(--sans);
+  font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+  display: flex; align-items: center; gap: 5px;
+}
+.btn:hover { background: var(--border); border-color: var(--text-muted); }
+.btn-accent { background: var(--accent); color: #0d1117; border-color: var(--accent); font-weight: 600; }
+.btn-accent:hover { background: #79b8ff; border-color: #79b8ff; }
+
+/* ── Column labels ── */
+.col-labels {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.col-label {
+  padding: 0 16px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--border);
+}
+.col-label:last-child { border-right: none; }
+.col-num {
+  font-family: var(--mono);
+  font-size: 10px;
+  background: var(--border2);
+  color: var(--text-muted);
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ── Columns ── */
+.col {
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+}
+.col:last-child { border-right: none; }
+
+/* ── Col 1: Raw code ── */
+.code-area-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.code-display {
+  flex: 1;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.8;
+  padding: 16px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-y: auto;
+  min-height: 0;
+  cursor: text;
+  position: relative;
+}
+
+/* when empty show textarea */
+textarea.raw-input {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  border: none;
+  color: transparent;
+  caret-color: var(--text);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.8;
+  padding: 16px;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-all;
+  z-index: 2;
+  overflow: hidden;
+}
+textarea.raw-input::placeholder { color: var(--text-dim); }
+
+.code-placeholder {
+  color: var(--text-dim);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 16px;
+  line-height: 1.8;
+  pointer-events: none;
+}
+
+/* syntax token colors */
+.sk  { color: #ff7b72; }   /* keyword */
+.st  { color: #79b8ff; }   /* type/class */
+.sm  { color: #d2a8ff; }   /* method */
+.ss  { color: #a5d6ff; }   /* string */
+.sc  { color: #484f58; font-style: italic; }  /* comment */
+.sn  { color: #f0883e; }   /* number */
+.sa  { color: #7ee787; }   /* attribute */
+.sp  { color: #e6edf3; }   /* punctuation / default */
+
+/* hoverable token */
+.htok {
+  border-radius: 3px;
+  cursor: help;
+  transition: background 0.1s;
+  position: relative;
+}
+.htok:hover { background: rgba(255,255,255,0.08); }
+
+/* line highlight from right panel */
+.code-line { display: block; border-radius: 3px; transition: background 0.15s; padding: 0 2px; margin: 0 -2px; }
+.code-line.hl { background: rgba(88,166,255,0.1); border-left: 2px solid var(--accent); padding-left: 6px; }
+
+/* ── Tooltip ── */
+#tooltip {
+  position: fixed;
+  z-index: 9999;
+  background: var(--surface);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 10px 13px;
+  max-width: 280px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+#tooltip.show { opacity: 1; }
+.tt-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); margin-bottom: 4px; }
+.tt-from { font-size: 10px; color: var(--text-dim); margin-bottom: 6px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+.tt-from span { color: var(--yellow); }
+.tt-desc { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
+
+/* ── Col 2: Annotation input ── */
+.anno-input-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+  gap: 10px;
+}
+textarea.anno-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border2);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.75;
+  padding: 12px;
+  resize: none;
+  outline: none;
+  tab-size: 2;
+  transition: border-color 0.15s;
+  min-height: 0;
+}
+textarea.anno-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+textarea.anno-input::placeholder { color: var(--text-dim); }
+
+.hint-row {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.7;
+  flex-shrink: 0;
+}
+.hint-row strong { color: var(--accent); font-weight: 500; }
+.hint-row code { font-family: var(--mono); font-size: 10.5px; background: var(--border); padding: 1px 4px; border-radius: 3px; color: var(--green); }
+
+/* ── Col 3: Rendered output ── */
+.output-wrap {
+  flex: 1;
+  padding: 16px;
+  overflow-y: auto;
+}
+
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 24px;
+}
+.empty-icon { font-size: 36px; opacity: 0.35; }
+.empty-state h3 { font-family: var(--display); font-size: 14px; color: var(--text-muted); font-weight: 600; }
+.empty-state p { font-size: 12px; line-height: 1.6; max-width: 220px; }
+
+.out-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.out-title { font-family: var(--display); font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+.block-count { font-family: var(--mono); font-size: 10px; color: var(--text-dim); background: var(--surface); padding: 2px 7px; border-radius: 20px; border: 1px solid var(--border); }
+
+/* ── Line block ── */
+.line-block { background: var(--surface); border: 1px solid var(--border); border-radius: 9px; margin-bottom: 12px; overflow: hidden; transition: border-color 0.2s; }
+.line-block:hover { border-color: var(--border2); }
+
+.line-head {
+  padding: 9px 13px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; gap: 8px;
+}
+.line-badge { font-family: var(--mono); font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 3px; background: var(--accent-glow); color: var(--accent); border: 1px solid rgba(88,166,255,0.25); white-space: nowrap; margin-top: 2px; flex-shrink: 0; }
+.line-code-text { font-family: var(--mono); font-size: 11.5px; color: var(--text); word-break: break-all; line-height: 1.5; flex: 1; }
+.line-src { font-family: var(--mono); font-size: 9.5px; color: var(--text-dim); margin-left: auto; white-space: nowrap; margin-top: 3px; flex-shrink: 0; }
+
+/* ── Part cards ── */
+.parts-wrap { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; }
+
+.part-card {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  border: 1px solid var(--border);
+  border-left: 3px solid transparent;
+  border-radius: 7px;
+  overflow: hidden;
+  cursor: default;
+  transition: border-color 0.15s, background 0.15s;
+}
+.part-card:hover { border-color: var(--border2); border-left-color: inherit; }
+
+.part-left { padding: 9px 12px; background: var(--surface2); border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 5px; }
+.part-dot-name { display: flex; align-items: flex-start; gap: 7px; }
+.part-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 5px; }
+.part-name { font-family: var(--mono); font-size: 12px; font-weight: 500; color: var(--text); word-break: break-all; line-height: 1.4; }
+.part-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-left: 14px; }
+.badge { font-size: 10px; font-weight: 500; padding: 1px 6px; border-radius: 3px; display: inline-block; }
+.badge-type-method    { background: var(--purple-dim); color: var(--purple); }
+.badge-type-property  { background: var(--green-dim);  color: var(--green);  }
+.badge-type-field     { background: var(--orange-dim); color: var(--orange); }
+.badge-type-component { background: var(--green-dim);  color: var(--green);  }
+.badge-type-value     { background: var(--yellow-dim); color: var(--yellow); }
+.badge-type-class     { background: var(--accent-glow); color: var(--accent); }
+.badge-type-keyword   { background: var(--red-dim);    color: var(--red);    }
+.badge-type-default   { background: var(--border);     color: var(--text-muted); }
+.badge-from { background: var(--surface); color: var(--text-dim); border: 1px solid var(--border2); font-size: 9.5px; }
+
+.part-right { padding: 9px 12px; background: var(--surface); display: flex; flex-direction: column; gap: 5px; }
+.part-desc { font-size: 12px; color: var(--text); line-height: 1.6; }
+.part-note { font-size: 11.5px; color: var(--orange); background: var(--orange-dim); border-left: 2px solid var(--orange); padding: 4px 9px; border-radius: 0 4px 4px 0; line-height: 1.5; }
+.part-note::before { content: '⚠ '; font-size: 10px; }
+.part-usage { font-size: 11.5px; color: var(--text-muted); line-height: 1.5; }
+.part-usage-code { font-family: var(--mono); font-size: 10.5px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 5px 8px; margin-top: 3px; color: #a5d6ff; white-space: pre-wrap; word-break: break-all; }
+
+/* layer2 */
+.l2-toggle { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 10.5px; color: var(--text-dim); cursor: pointer; user-select: none; transition: color 0.15s; width: fit-content; }
+.l2-toggle:hover { color: var(--accent); }
+.l2-arrow { font-size: 8px; transition: transform 0.2s; display: inline-block; }
+.l2-toggle.open .l2-arrow { transform: rotate(90deg); }
+.l2-body { display: none; margin-top: 6px; background: var(--bg); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.l2-body.open { display: block; }
+.l2-label { font-size: 9.5px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em; padding: 5px 10px 3px; background: var(--surface2); border-bottom: 1px solid var(--border); }
+.l2-code { font-family: var(--mono); font-size: 10.5px; color: #a5d6ff; padding: 8px 10px; line-height: 1.8; white-space: pre-wrap; word-break: break-all; }
+.l2-explain { font-size: 11.5px; color: var(--text-muted); padding: 0 10px 8px; line-height: 1.5; border-top: 1px solid var(--border); }
+
+/* token colors for code-in-output */
+.tok-0 { background: rgba(88,166,255,0.15);  color: #79b8ff; border-radius: 3px; padding: 1px 2px; }
+.tok-1 { background: rgba(188,140,255,0.15); color: #d2a8ff; border-radius: 3px; padding: 1px 2px; }
+.tok-2 { background: rgba(63,185,80,0.15);   color: #7ee787; border-radius: 3px; padding: 1px 2px; }
+.tok-3 { background: rgba(240,136,62,0.15);  color: #ffa657; border-radius: 3px; padding: 1px 2px; }
+.tok-4 { background: rgba(227,179,65,0.15);  color: #e3b341; border-radius: 3px; padding: 1px 2px; }
+.tok-5 { background: rgba(255,123,114,0.15); color: #ff9492; border-radius: 3px; padding: 1px 2px; }
+.tok-6 { background: rgba(56,189,248,0.15);  color: #67d4f8; border-radius: 3px; padding: 1px 2px; }
+.tok-7 { background: rgba(240,62,62,0.15);   color: #f87171; border-radius: 3px; padding: 1px 2px; }
+
+.part-card.pc-hover { background: var(--surface2) !important; }
+
+/* parse error */
+.parse-error { background: var(--red-dim); border: 1px solid rgba(255,123,114,0.3); border-radius: 7px; padding: 10px 14px; font-size: 12px; color: var(--red); font-family: var(--mono); }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">Unity<span>Lens</span></div>
+  <div class="tagline">代码 · 解读 · 可视化</div>
+  <div class="header-actions">
+    <button class="btn" onclick="loadExample()">📄 载入示例</button>
+    <button class="btn" onclick="clearAll()">清空</button>
+    <button class="btn btn-accent" onclick="renderOutput()">▶ 渲染解读</button>
+  </div>
+</header>
+
+<!-- ── Column labels ── -->
+<div class="col-labels">
+  <div class="col-label"><div class="col-num">1</div>原始 C# 代码 &nbsp;<span style="color:var(--text-dim);font-size:9.5px;font-weight:400;text-transform:none;letter-spacing:0">悬停查看关键字含义</span></div>
+  <div class="col-label"><div class="col-num">2</div>AI 解读文本 &nbsp;<span style="color:var(--text-dim);font-size:9.5px;font-weight:400;text-transform:none;letter-spacing:0">粘贴 @line 格式输出</span></div>
+  <div class="col-label"><div class="col-num">3</div>可视化结果 &nbsp;<span style="color:var(--text-dim);font-size:9.5px;font-weight:400;text-transform:none;letter-spacing:0">悬停卡片高亮左栏代码行</span></div>
+</div>
+
+<!-- ── Col 1 ── -->
+<div class="col" id="col1">
+  <div class="code-area-wrap" style="flex:1;position:relative;">
+    <div class="code-display" id="code-display"></div>
+    <textarea class="raw-input" id="raw-input" spellcheck="false" placeholder="在这里粘贴你的 C# 代码...
+
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    private Rigidbody rb;
+    private void Start()
+    {
+        rb = GetComponent&lt;Rigidbody&gt;();
+    }
+}"></textarea>
+  </div>
+</div>
+
+<!-- ── Col 2 ── -->
+<div class="col" id="col2">
+  <div class="anno-input-wrap">
+    <textarea class="anno-input" id="anno-input" spellcheck="false" placeholder="把AI生成的解读文本粘贴到这里...
+
+@line
+code: rb = GetComponent&lt;Rigidbody&gt;();
+来源: Start()
+
+  @part GetComponent&lt;Rigidbody&gt;()
+  type: 方法
+  来自: Unity 内置
+  说明: 在当前GameObject上查找并返回指定类型的组件
+  注意: 有性能开销，不要在Update()里每帧调用
+  怎么用: 在Start()里调用一次并存起来
+  示例: rb = GetComponent&lt;Rigidbody&gt;();"></textarea>
+    <div class="hint-row">
+      <strong>格式：</strong><code>@line</code> 开始代码块，<code>@part</code> 拆解每个部分<br>
+      字段：<strong>type</strong> / <strong>来自</strong> / <strong>说明</strong> / <strong>注意</strong>（可选）/ <strong>怎么用</strong> / <strong>示例</strong>
+    </div>
+  </div>
+</div>
+
+<!-- ── Col 3 ── -->
+<div class="col" id="col3">
+  <div class="output-wrap">
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">🔍</div>
+      <h3>等待解读文本</h3>
+      <p>在第②栏粘贴AI解读文本，点击「渲染解读」</p>
+      <p style="margin-top:6px;font-size:11px;color:var(--text-dim)">悬停卡片会在左栏高亮对应代码行</p>
+    </div>
+    <div id="output" style="display:none"></div>
+  </div>
+</div>
+
+</div>
+
+<!-- ── Tooltip ── -->
+<div id="tooltip">
+  <div class="tt-name" id="tt-name"></div>
+  <div class="tt-from" id="tt-from"></div>
+  <div class="tt-desc" id="tt-desc"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// KNOWLEDGE BASE — C# keywords + Unity API
+// ═══════════════════════════════════════════════════════
+const KB = {
+  // Access modifiers
+  'private':   { from: 'C# 关键字', desc: '只有这个类内部能访问，外部完全看不到' },
+  'public':    { from: 'C# 关键字', desc: '任何地方都能访问，没有限制' },
+  'protected': { from: 'C# 关键字', desc: '只有这个类和它的子类能访问' },
+  'internal':  { from: 'C# 关键字', desc: '同一个程序集内可以访问' },
+
+  // Type keywords
+  'static':    { from: 'C# 关键字', desc: '属于类本身，不属于某个实例。全局只有一份，通过类名直接访问' },
+  'void':      { from: 'C# 关键字', desc: '这个方法不返回任何值' },
+  'new':       { from: 'C# 关键字', desc: '在堆（Heap）上创建一个对象实例，返回该对象的引用（地址）' },
+  'var':       { from: 'C# 关键字', desc: '让编译器自动推断变量类型，类型在编译时就确定了，不是动态类型' },
+  'readonly':  { from: 'C# 关键字', desc: '只能在声明时或构造函数里赋值，之后不能修改' },
+  'const':     { from: 'C# 关键字', desc: '编译时常量，永远不能改变，比readonly限制更严' },
+  'ref':       { from: 'C# 关键字', desc: '传引用而不是拷贝，方法内的修改会影响原始变量' },
+  'out':       { from: 'C# 关键字', desc: '方法可以通过这个参数返回值，调用前不需要初始化' },
+  'params':    { from: 'C# 关键字', desc: '允许传入任意数量的参数，方法内当数组使用' },
+
+  // OOP keywords
+  'class':     { from: 'C# 关键字', desc: '定义一个类（引用类型）。实例存在堆上，变量存的是引用（地址）' },
+  'struct':    { from: 'C# 关键字', desc: '定义一个结构体（值类型）。赋值时完整拷贝，不是引用。Vector3就是struct' },
+  'interface': { from: 'C# 关键字', desc: '定义一个接口，只规定"要做什么"，不规定"怎么做"' },
+  'abstract':  { from: 'C# 关键字', desc: '抽象类或抽象方法，不能直接实例化，必须由子类实现' },
+  'override':  { from: 'C# 关键字', desc: '重写父类的虚方法，提供新的实现' },
+  'virtual':   { from: 'C# 关键字', desc: '允许子类重写这个方法' },
+  'sealed':    { from: 'C# 关键字', desc: '防止这个类被继承，或防止这个方法被继续重写' },
+  'base':      { from: 'C# 关键字', desc: '访问父类的成员或调用父类的构造函数' },
+  'this':      { from: 'C# 关键字', desc: '指代当前实例本身' },
+
+  // Control flow
+  'if':        { from: 'C# 关键字', desc: '条件判断，括号内为true才执行' },
+  'else':      { from: 'C# 关键字', desc: 'if条件为false时执行的分支' },
+  'return':    { from: 'C# 关键字', desc: '结束方法并返回一个值（void方法可以不带值）' },
+  'yield':     { from: 'C# 关键字', desc: '协程专用。yield return暂停协程，yield break提前结束协程' },
+  'await':     { from: 'C# 关键字', desc: '等待一个异步操作完成，期间不阻塞主线程（async/await模式）' },
+  'async':     { from: 'C# 关键字', desc: '标记一个方法是异步方法，方法内可以使用await' },
+  'foreach':   { from: 'C# 关键字', desc: '遍历集合里的每一个元素' },
+  'while':     { from: 'C# 关键字', desc: '循环，条件为true就一直执行。在Update里用while(true)会卡死游戏' },
+  'switch':    { from: 'C# 关键字', desc: '多分支选择，比多个if-else更清晰' },
+  'try':       { from: 'C# 关键字', desc: '包裹可能出错的代码，配合catch捕获异常' },
+  'catch':     { from: 'C# 关键字', desc: '捕获try块中抛出的异常，防止程序崩溃' },
+  'throw':     { from: 'C# 关键字', desc: '主动抛出一个异常' },
+  'null':      { from: 'C# 关键字', desc: '引用类型的空值，表示"这个变量没有指向任何对象"。访问null的成员会报NullReferenceException' },
+  'true':      { from: 'C# 关键字', desc: '布尔真值' },
+  'false':     { from: 'C# 关键字', desc: '布尔假值' },
+  'as':        { from: 'C# 关键字', desc: '安全类型转换。转换失败返回null，不抛异常。比强制转换(T)更安全' },
+  'is':        { from: 'C# 关键字', desc: '检查对象是否是某个类型，返回true/false' },
+  'typeof':    { from: 'C# 关键字', desc: '获取一个类型的Type对象，用于反射' },
+  'using':     { from: 'C# 关键字', desc: '引入命名空间，或确保对象使用完后自动释放资源' },
+  'namespace': { from: 'C# 关键字', desc: '命名空间，用来组织代码，防止类名冲突' },
+  'enum':      { from: 'C# 关键字', desc: '枚举类型，定义一组有名字的整数常量，让代码更易读' },
+  'where':     { from: 'C# 关键字', desc: '泛型约束，限制类型参数T必须满足某些条件' },
+
+  // C# types
+  'string':  { from: 'C# 内置类型', desc: '文本字符串，引用类型但行为像值类型（不可变，修改会创建新对象）' },
+  'int':     { from: 'C# 内置类型', desc: '32位整数，值类型，范围约 -21亿 到 21亿' },
+  'float':   { from: 'C# 内置类型', desc: '32位浮点数，值类型。Unity里用float而不是double，记得加f后缀如 1.5f' },
+  'bool':    { from: 'C# 内置类型', desc: '布尔值，只有true和false两种值' },
+  'double':  { from: 'C# 内置类型', desc: '64位浮点数，精度更高但Unity里通常用float' },
+  'byte':    { from: 'C# 内置类型', desc: '8位无符号整数，范围0-255' },
+  'object':  { from: 'C# 内置类型', desc: '所有类型的基类，任何对象都可以赋给object变量' },
+
+  // Unity base classes
+  'MonoBehaviour': { from: 'Unity 内置', desc: '所有Unity脚本的基类。继承它才能挂在GameObject上，才能用Start/Update等生命周期方法' },
+  'GameObject':    { from: 'Unity 内置', desc: 'Unity场景里的基本单元，本身是个容器，功能靠挂载组件实现。transform/rigidbody等都是它上面的组件' },
+  'Transform':     { from: 'Unity 内置', desc: '控制位置、旋转、缩放的组件，每个GameObject必有且只有一个' },
+  'Component':     { from: 'Unity 内置', desc: '所有组件的基类。Rigidbody、Collider、你自己的脚本都是Component' },
+  'Object':        { from: 'Unity 内置', desc: 'Unity所有对象的基类（注意不是C#的object）。GameObject、Component、Texture等都继承自它' },
+  'Coroutine':     { from: 'Unity 内置', desc: '协程对象，StartCoroutine的返回值，可以用来停止协程' },
+  'WaitForSeconds':{ from: 'Unity 内置', desc: '协程等待指令，yield return new WaitForSeconds(1f) 等待1秒再继续' },
+
+  // Unity lifecycle
+  'Awake':          { from: 'Unity 生命周期', desc: '最早执行，对象创建时立刻调用，早于Start。适合初始化自身内部引用' },
+  'Start':          { from: 'Unity 生命周期', desc: '第一帧Update之前执行，晚于Awake。适合需要其他对象已初始化后才能执行的逻辑' },
+  'Update':         { from: 'Unity 生命周期', desc: '每帧调用一次，频率取决于帧率。处理输入、移动等逻辑' },
+  'FixedUpdate':    { from: 'Unity 生命周期', desc: '以固定时间间隔调用（默认0.02秒），与帧率无关。所有物理操作放这里' },
+  'LateUpdate':     { from: 'Unity 生命周期', desc: '每帧Update之后调用。适合相机跟随等需要在物体移动后再更新的逻辑' },
+  'OnEnable':       { from: 'Unity 生命周期', desc: '物体或组件被激活时调用。订阅事件放这里' },
+  'OnDisable':      { from: 'Unity 生命周期', desc: '物体或组件被禁用时调用。取消订阅事件放这里，防止内存泄漏' },
+  'OnDestroy':      { from: 'Unity 生命周期', desc: '物体被销毁前调用。做清理工作，注销事件等' },
+  'OnCollisionEnter': { from: 'Unity 生命周期', desc: '碰撞开始的那一帧调用（需要Collider且非Trigger）' },
+  'OnTriggerEnter':   { from: 'Unity 生命周期', desc: '进入触发器的那一帧调用（需要isTrigger=true的Collider）' },
+
+  // Unity common API
+  'Instantiate':        { from: 'Unity 内置', desc: '克隆一个对象放入场景。Prefab是模板，Instantiate才是真正创建。每调一次生成一个' },
+  'Destroy':            { from: 'Unity 内置', desc: '销毁一个物体或组件，下一帧才真正删除。传入延迟参数可延迟销毁，如Destroy(obj, 2f)' },
+  'DontDestroyOnLoad':  { from: 'Unity 内置', desc: '切换场景时保留这个物体。不调的话换场景会自动销毁' },
+  'GetComponent':       { from: 'Unity 内置', desc: '从当前GameObject上查找并返回指定类型的组件。找不到返回null。有开销，建议在Start里缓存' },
+  'AddComponent':       { from: 'Unity 内置', desc: '运行时给GameObject动态添加一个组件' },
+  'FindObjectOfType':   { from: 'Unity 内置', desc: '在整个场景里搜索某类型的对象。非常慢，不要在Update里用' },
+  'StartCoroutine':     { from: 'Unity 内置', desc: '启动一个协程。协程可以分帧执行，实现延迟、等待等效果' },
+  'StopCoroutine':      { from: 'Unity 内置', desc: '停止一个正在运行的协程' },
+  'Invoke':             { from: 'Unity 内置', desc: '延迟调用一个方法，如Invoke("MethodName", 2f)表示2秒后调用' },
+  'Debug':              { from: 'Unity 内置', desc: '调试工具类。Debug.Log()打印信息，Debug.LogError()打印错误，打包发布后不会显示' },
+  'Resources':          { from: 'Unity 内置', desc: '从项目Resources文件夹加载资源。资源必须放在名为Resources的文件夹内' },
+  'SceneManager':       { from: 'Unity 内置 (UnityEngine.SceneManagement)', desc: '场景管理，用于加载/切换场景。LoadScene()加载，GetActiveScene()获取当前场景' },
+  'PlayerPrefs':        { from: 'Unity 内置', desc: '轻量级本地存储，保存简单的键值对数据（分数、设置等）。数据存在本地，重启游戏不丢失' },
+  'Time':               { from: 'Unity 内置', desc: '时间相关工具类。Time.deltaTime是上帧耗时，Time.time是游戏运行总时间' },
+  'Input':              { from: 'Unity 内置', desc: '获取键盘/鼠标/手柄输入。Input.GetKeyDown()按键按下时，GetKey()持续按住时' },
+  'Physics':            { from: 'Unity 内置', desc: '物理工具类。Physics.Raycast()射线检测，Physics.OverlapSphere()范围检测等' },
+  'Vector3':            { from: 'Unity 内置', desc: '三维向量（struct值类型），表示3D位置或方向。赋值时完整拷贝，改副本不影响原值' },
+  'Vector2':            { from: 'Unity 内置', desc: '二维向量（struct值类型），2D游戏常用' },
+  'Quaternion':         { from: 'Unity 内置', desc: '四元数，Unity内部用来表示旋转。不要手动修改xyzw，用Quaternion.Euler()等工具方法' },
+  'Color':              { from: 'Unity 内置', desc: '颜色，RGBA各分量0-1范围的float' },
+  'Mathf':              { from: 'Unity 内置', desc: '数学工具类，提供Sin/Cos/Clamp/Lerp等常用数学函数，专为float优化' },
+  'IEnumerator':        { from: 'C# 标准库', desc: '协程方法的返回类型，配合yield return使用。告诉Unity这个方法可以分帧执行' },
+  'List':               { from: 'C# 标准库', desc: '动态数组，可以随时添加删除元素。比普通数组灵活，但内存不连续' },
+  'Dictionary':         { from: 'C# 标准库', desc: '键值对容器，通过key快速查找value。查找是O(1)操作，比List遍历快得多' },
+  'Action':             { from: 'C# 标准库', desc: '委托类型，代表一个没有返回值的方法引用。可以像变量一样传递方法' },
+  'Func':               { from: 'C# 标准库', desc: '委托类型，代表有返回值的方法引用。最后一个泛型参数是返回类型' },
+  'SerializeField':     { from: 'Unity 特性', desc: '让private字段在Inspector面板可见可编辑，但外部代码仍不能访问。比public更安全' },
+  'RequireComponent':   { from: 'Unity 特性', desc: '声明这个脚本依赖某个组件，Unity会自动添加该组件，防止忘记挂' },
+  'Range':              { from: 'Unity 特性', desc: '让数字字段在Inspector里显示为滑条，限制输入范围' },
+  'Addressables':       { from: 'Unity Addressables 包', desc: 'Unity资源管理系统，支持异步加载、热更新、分包等。比Resources更适合大型项目' },
+  'AsyncOperationHandle': { from: 'Unity Addressables 包', desc: 'Addressables异步操作的凭据（类似快递单号），可以查状态、取结果、释放资源' },
+  'UnityAction':        { from: 'Unity 内置 (UnityEngine.Events)', desc: 'Unity版的Action委托，专为UnityEvent设计，Inspector里可以绑定' },
+  'UnityEvent':         { from: 'Unity 内置 (UnityEngine.Events)', desc: 'Unity的事件系统，可以在Inspector里连接监听者，解耦组件间通信' },
+  'Rigidbody':          { from: 'Unity 内置', desc: '3D物理刚体组件，让物体受重力和物理力影响。移动物体应通过Rigidbody而不是直接改Transform' },
+  'Rigidbody2D':        { from: 'Unity 内置', desc: '2D物理刚体组件，2D游戏用这个' },
+  'Collider':           { from: 'Unity 内置', desc: '碰撞体基类，定义物理碰撞的形状范围' },
+  'Animator':           { from: 'Unity 内置', desc: '动画控制器组件，控制动画状态机的播放' },
+  'AudioSource':        { from: 'Unity 内置', desc: '音频播放组件，Play()播放，Stop()停止，clip属性设置音频片段' },
+  'Canvas':             { from: 'Unity 内置', desc: 'UI根容器，所有UI元素必须是Canvas的子物体' },
+  'Image':              { from: 'Unity 内置 (UnityEngine.UI)', desc: 'UI图片组件，显示Sprite图片' },
+  'Text':               { from: 'Unity 内置 (UnityEngine.UI)', desc: 'UI文本组件（旧版），显示文字' },
+  'Button':             { from: 'Unity 内置 (UnityEngine.UI)', desc: 'UI按钮组件，onClick.AddListener()添加点击事件' },
+};
+
+// ═══════════════════════════════════════════════════════
+// SYNTAX HIGHLIGHT — tokenize C# source
+// ═══════════════════════════════════════════════════════
+const KEYWORDS = new Set([
+  'private','public','protected','internal','static','void','new','var','readonly','const',
+  'ref','out','params','class','struct','interface','abstract','override','virtual','sealed',
+  'base','this','if','else','return','yield','await','async','foreach','while','for','do',
+  'switch','case','break','continue','try','catch','finally','throw','null','true','false',
+  'as','is','typeof','using','namespace','enum','where','in','get','set'
+]);
+
+const UNITY_TYPES = new Set([
+  'MonoBehaviour','GameObject','Transform','Component','Object','Coroutine','WaitForSeconds',
+  'Vector3','Vector2','Quaternion','Color','Mathf','Time','Input','Physics','Debug',
+  'Resources','SceneManager','PlayerPrefs','Animator','AudioSource','Canvas','Image','Text',
+  'Button','Rigidbody','Rigidbody2D','Collider','IEnumerator','List','Dictionary','Action',
+  'Func','UnityAction','UnityEvent','Addressables','AsyncOperationHandle','ResourceRequest',
+  'AsyncOperation','string','int','float','bool','double','byte','object','T','StartCoroutine',
+  'StopCoroutine','Invoke','Instantiate','Destroy','DontDestroyOnLoad','GetComponent',
+  'AddComponent','FindObjectOfType','Awake','Start','Update','FixedUpdate','LateUpdate',
+  'OnEnable','OnDisable','OnDestroy','OnCollisionEnter','OnTriggerEnter','SerializeField',
+  'RequireComponent','Range'
+]);
+
+function tokenizeCSharp(code) {
+  // Returns array of {text, cls, kb} for rendering
+  const tokens = [];
+  let i = 0;
+  const len = code.length;
+
+  while (i < len) {
+    // Single-line comment
+    if (code[i] === '/' && code[i+1] === '/') {
+      let end = code.indexOf('\n', i);
+      if (end === -1) end = len;
+      tokens.push({ text: code.slice(i, end), cls: 'sc', kb: null });
+      i = end;
+      continue;
+    }
+    // Multi-line comment
+    if (code[i] === '/' && code[i+1] === '*') {
+      let end = code.indexOf('*/', i+2);
+      if (end === -1) end = len - 2;
+      tokens.push({ text: code.slice(i, end+2), cls: 'sc', kb: null });
+      i = end + 2;
+      continue;
+    }
+    // String literal
+    if (code[i] === '"') {
+      let j = i + 1;
+      while (j < len && code[j] !== '"') { if (code[j] === '\\') j++; j++; }
+      tokens.push({ text: code.slice(i, j+1), cls: 'ss', kb: null });
+      i = j + 1;
+      continue;
+    }
+    // Interpolated string $"
+    if (code[i] === '$' && code[i+1] === '"') {
+      let j = i + 2;
+      while (j < len && code[j] !== '"') { if (code[j] === '\\') j++; j++; }
+      tokens.push({ text: code.slice(i, j+1), cls: 'ss', kb: null });
+      i = j + 1;
+      continue;
+    }
+    // Attribute [SerializeField] etc
+    if (code[i] === '[') {
+      let j = code.indexOf(']', i);
+      if (j === -1) j = i;
+      tokens.push({ text: code.slice(i, j+1), cls: 'sa', kb: null });
+      i = j + 1;
+      continue;
+    }
+    // Number
+    if (/[0-9]/.test(code[i]) || (code[i] === '-' && /[0-9]/.test(code[i+1] || ''))) {
+      let j = i;
+      while (j < len && /[0-9\.\-fFdDlLuU]/.test(code[j])) j++;
+      tokens.push({ text: code.slice(i, j), cls: 'sn', kb: null });
+      i = j;
+      continue;
+    }
+    // Identifier
+    if (/[a-zA-Z_]/.test(code[i])) {
+      let j = i;
+      while (j < len && /[a-zA-Z0-9_]/.test(code[j])) j++;
+      const word = code.slice(i, j);
+      let cls = 'sp';
+      if (KEYWORDS.has(word)) cls = 'sk';
+      else if (UNITY_TYPES.has(word)) cls = 'st';
+      // If followed by ( it's a method call
+      let k = j;
+      while (k < len && code[k] === ' ') k++;
+      if (code[k] === '(' && cls === 'sp') cls = 'sm';
+      const kb = KB[word] || null;
+      tokens.push({ text: word, cls, kb });
+      i = j;
+      continue;
+    }
+    // Whitespace/newline block
+    if (/[\s]/.test(code[i])) {
+      let j = i;
+      while (j < len && /[\s]/.test(code[j])) j++;
+      tokens.push({ text: code.slice(i, j), cls: null, kb: null });
+      i = j;
+      continue;
+    }
+    // Everything else
+    tokens.push({ text: code[i], cls: null, kb: null });
+    i++;
+  }
+  return tokens;
+}
+
+function renderCodeDisplay(rawCode) {
+  const displayEl = document.getElementById('code-display');
+  if (!rawCode.trim()) {
+    displayEl.innerHTML = '';
+    return;
+  }
+  const tokens = tokenizeCSharp(rawCode);
+  // Build line-by-line so we can add data-line attributes
+  const lines = [];
+  let currentLine = [];
+  let lineIndex = 0;
+
+  tokens.forEach(tok => {
+    const parts = tok.text.split('\n');
+    parts.forEach((part, pi) => {
+      if (part.length > 0) {
+        currentLine.push({ text: part, cls: tok.cls, kb: tok.kb });
+      }
+      if (pi < parts.length - 1) {
+        lines.push({ tokens: currentLine, index: lineIndex++ });
+        currentLine = [];
+      }
+    });
+  });
+  if (currentLine.length > 0) lines.push({ tokens: currentLine, index: lineIndex });
+
+  let html = '';
+  lines.forEach(line => {
+    const lineContent = line.tokens.map(tok => {
+      const esc = escHtml(tok.text);
+      if (!tok.cls && !tok.kb) return esc;
+      const cls = tok.cls || '';
+      if (tok.kb) {
+        return `<span class="htok ${cls}" data-kb="${escAttr(tok.text)}">${esc}</span>`;
+      }
+      return `<span class="${cls}">${esc}</span>`;
+    }).join('');
+    html += `<span class="code-line" data-line="${line.index}">${lineContent}\n</span>`;
+  });
+
+  displayEl.innerHTML = html;
+  bindTooltipEvents();
+}
+
+// ═══════════════════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════════════════
+const tooltip = document.getElementById('tooltip');
+let ttTimeout;
+
+function bindTooltipEvents() {
+  document.querySelectorAll('.htok').forEach(el => {
+    el.addEventListener('mouseenter', e => {
+      const key = el.dataset.kb;
+      const info = KB[key];
+      if (!info) return;
+      clearTimeout(ttTimeout);
+      document.getElementById('tt-name').textContent = key;
+      document.getElementById('tt-from').innerHTML = `来自：<span>${info.from}</span>`;
+      document.getElementById('tt-desc').textContent = info.desc;
+      positionTooltip(e);
+      tooltip.classList.add('show');
+    });
+    el.addEventListener('mousemove', e => positionTooltip(e));
+    el.addEventListener('mouseleave', () => {
+      ttTimeout = setTimeout(() => tooltip.classList.remove('show'), 80);
+    });
+  });
+}
+
+function positionTooltip(e) {
+  const tw = 288;
+  let x = e.clientX + 14;
+  let y = e.clientY + 14;
+  if (x + tw > window.innerWidth) x = e.clientX - tw - 8;
+  if (y + 120 > window.innerHeight) y = e.clientY - 130;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top = y + 'px';
+}
+
+// ═══════════════════════════════════════════════════════
+// PARSER — @line / @part format
+// ═══════════════════════════════════════════════════════
+function parseAnno(raw) {
+  const lines = raw.split('\n');
+  const blocks = [];
+  let cur = null, curPart = null;
+
+  for (const line of lines) {
+    const t = line.trim();
+    if (!t) continue;
+
+    if (t === '@line') {
+      if (cur) blocks.push(cur);
+      cur = { code: '', source: '', parts: [] };
+      curPart = null;
+      continue;
+    }
+    if (!cur) continue;
+
+    if (t.startsWith('code:'))  { cur.code = t.slice(5).trim(); continue; }
+    if (t.startsWith('来源:'))  { cur.source = t.slice(3).trim(); continue; }
+
+    if (t.startsWith('@part ')) {
+      curPart = { name: t.slice(6).trim(), type: '', from: '', desc: '', note: '', usage: '', example: '' };
+      cur.parts.push(curPart);
+      continue;
+    }
+    if (curPart) {
+      if (t.startsWith('type:'))  curPart.type    = t.slice(5).trim();
+      else if (t.startsWith('来自:'))  curPart.from    = t.slice(3).trim();
+      else if (t.startsWith('说明:'))  curPart.desc    = t.slice(3).trim();
+      else if (t.startsWith('注意:'))  curPart.note    = t.slice(3).trim();
+      else if (t.startsWith('怎么用:')) curPart.usage   = t.slice(4).trim();
+      else if (t.startsWith('示例:'))  curPart.example = t.slice(3).trim();
+    }
+  }
+  if (cur) blocks.push(cur);
+  return blocks;
+}
+
+// ═══════════════════════════════════════════════════════
+// CODE HIGHLIGHT within output line-code
+// ═══════════════════════════════════════════════════════
+function highlightCodeLine(code, parts) {
+  if (!parts.length) return escHtml(code);
+  const candidates = [];
+  parts.forEach((part, pi) => {
+    const variants = new Set([
+      part.name,
+      part.name.replace(/\(\)$/, ''),
+      part.name.replace(/<[^>]+>/g, ''),
+      part.name.replace(/<[^>]+>\(\)$/, '()'),
+    ]);
+    variants.forEach(v => { if (v && v.length >= 2) candidates.push({ text: v, pi }); });
+  });
+  candidates.sort((a, b) => b.text.length - a.text.length);
+  const taken = new Array(code.length).fill(-1);
+  const spans = [];
+  candidates.forEach(({ text, pi }) => {
+    let idx = 0;
+    while (true) {
+      const pos = code.indexOf(text, idx);
+      if (pos === -1) break;
+      const end = pos + text.length;
+      let free = true;
+      for (let i = pos; i < end; i++) { if (taken[i] !== -1) { free = false; break; } }
+      if (free) {
+        for (let i = pos; i < end; i++) taken[i] = pi;
+        spans.push({ start: pos, end, pi });
+      }
+      idx = pos + 1;
+    }
+  });
+  spans.sort((a, b) => a.start - b.start);
+  let result = '', cursor = 0;
+  spans.forEach(({ start, end, pi }) => {
+    if (cursor < start) result += escHtml(code.slice(cursor, start));
+    result += `<span class="tok-${pi%8}" data-tok="${pi}">${escHtml(code.slice(start, end))}</span>`;
+    cursor = end;
+  });
+  if (cursor < code.length) result += escHtml(code.slice(cursor));
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════
+// LAYER 2 — auto stubs
+// ═══════════════════════════════════════════════════════
+function layer2Stub(part) {
+  const n = part.name.replace(/\(\)$/, '').replace(/<[^>]+>/g, '');
+  const map = {
+    '方法':         { code: `// C# 层大致等价于：\npublic ReturnType ${n}(...) {\n    // 调用 Unity C++ 引擎接口\n    // 由引擎底层处理\n}`, explain: '这个方法在C#层只是一个入口，真正的工作由Unity的C++引擎完成。你调用它，引擎处理它。' },
+    '属性':         { code: `public SomeType ${n} {\n    get { return Internal_Get_${n}(); }\n    set { Internal_Set_${n}(value); }\n}`, explain: '属性不是直接读写内存，每次访问都会调用getter/setter。频繁读写时可以缓存到局部变量减少开销。' },
+    '静态属性':     { code: `// 静态属性，通过类名访问，不需要实例：\npublic static SomeType ${n} {\n    get { /* 从引擎状态读取 */ }\n}`, explain: '静态属性属于类本身，所有实例共享同一个值，通过类名直接访问。' },
+    'Component引用':{ code: `// 快捷属性底层等价于：\npublic Transform transform {\n    get { return GetComponent<Transform>(); }\n}`, explain: 'Unity预先缓存了transform引用，所以直接用transform比手动GetComponent<Transform>()快，但概念上是同一件事。' },
+    '字段':         { code: `// 字段是对象上的数据槽：\nprivate SomeType ${n}; // 存在堆内存里\n\n// 或带Inspector显示：\n[SerializeField]\nprivate SomeType ${n};`, explain: '字段是对象的数据，存放在堆（Heap）上。引用类型字段里存的是地址（钥匙），不是对象本身。' },
+    '值类型':       { code: `// 值类型（struct），赋值时完整拷贝：\nstruct ${n} {\n    public float x, y, z;\n    // 赋值 = 完整复制一份\n}`, explain: 'struct是值类型，赋值会复制整个数据。这就是为什么改transform.position的副本不会影响物体。' },
+    '类':           { code: `// 类是引用类型，new时在堆上分配：\n${n} obj = new ${n}();\n// obj 里存的是"地址"，不是对象本身`, explain: '类实例存在堆上，变量里存的是引用（地址）。多个变量可以指向同一个对象，改一个另一个也变。' },
+    '关键字':       { code: `// 这是 C# 语言内置关键字\n// 由编译器直接处理，没有运行时实现`, explain: '关键字是C#语法的一部分，编译时直接转换为中间语言指令。' },
+  };
+  return map[part.type] || { code: `// 底层由 Unity 引擎管理\n// C# 层是对 C++ 引擎的封装`, explain: '这部分的底层由Unity的C++引擎处理，C#层提供的是封装好的接口。' };
+}
+
+function typeClass(t) {
+  const m = { '方法':'method','属性':'property','字段':'field','组件':'component','Component引用':'component','值类型':'value','静态属性':'property','类':'class','关键字':'keyword' };
+  return 'badge-type-' + (m[t] || 'default');
+}
+
+// ═══════════════════════════════════════════════════════
+// CROSS-PANEL: right card hover → left line highlight
+// ═══════════════════════════════════════════════════════
+function findLineInRaw(codeSnippet) {
+  // Find which line number(s) in the raw code contain this snippet
+  const raw = document.getElementById('raw-input').value;
+  const lines = raw.split('\n');
+  const results = [];
+  lines.forEach((line, i) => {
+    if (line.includes(codeSnippet.trim().substring(0, 20))) results.push(i);
+  });
+  return results;
+}
+
+function highlightRawLines(lineIndices, on) {
+  const displayEl = document.getElementById('code-display');
+  lineIndices.forEach(idx => {
+    const el = displayEl.querySelector(`.code-line[data-line="${idx}"]`);
+    if (el) el.classList.toggle('hl', on);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+// RENDER OUTPUT
+// ═══════════════════════════════════════════════════════
+function renderOutput() {
+  const raw = document.getElementById('anno-input').value.trim();
+  const outputEl = document.getElementById('output');
+  const emptyEl = document.getElementById('empty-state');
+
+  if (!raw) { emptyEl.style.display = 'flex'; outputEl.style.display = 'none'; return; }
+
+  const blocks = parseAnno(raw);
+  if (!blocks.length) {
+    emptyEl.style.display = 'none';
+    outputEl.style.display = 'block';
+    outputEl.innerHTML = `<div class="parse-error">未能识别到任何 @line 块。<br>确保每个代码块以 @line 单独一行开头。</div>`;
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  outputEl.style.display = 'block';
+
+  let html = `<div class="out-header"><div class="out-title">解读视图</div><div class="block-count">${blocks.length} 个代码块</div></div>`;
+
+  blocks.forEach((block, bi) => {
+    const bid = `b${bi}`;
+    const hl = highlightCodeLine(block.code, block.parts);
+    html += `<div class="line-block" id="${bid}">`;
+    html += `<div class="line-head">`;
+    html += `<div class="line-badge">LINE ${bi+1}</div>`;
+    html += `<div class="line-code-text" id="${bid}-code">${hl || '<span style="color:var(--text-dim)">（无代码）</span>'}</div>`;
+    if (block.source) html += `<div class="line-src">📍 ${escHtml(block.source)}</div>`;
+    html += `</div>`;
+
+    if (block.parts.length) {
+      html += `<div class="parts-wrap">`;
+      block.parts.forEach((part, pi) => {
+        const l2id = `l2-${bi}-${pi}`;
+        const stub = layer2Stub(part);
+        html += `<div class="part-card" style="border-left-color:${tokColor(pi)}" data-bid="${bid}" data-pi="${pi}" data-code="${escAttr(block.code)}">`;
+
+        html += `<div class="part-left">`;
+        html += `<div class="part-dot-name">`;
+        html += `<div class="part-dot" style="background:${tokColor(pi)}"></div>`;
+        html += `<div class="part-name">${escHtml(part.name)}</div>`;
+        html += `</div>`;
+        html += `<div class="part-badges">`;
+        if (part.type) html += `<span class="badge ${typeClass(part.type)}">${escHtml(part.type)}</span>`;
+        if (part.from) html += `<span class="badge badge-from">${escHtml(part.from)}</span>`;
+        html += `</div></div>`;
+
+        html += `<div class="part-right">`;
+        if (part.desc)    html += `<div class="part-desc">${escHtml(part.desc)}</div>`;
+        if (part.note)    html += `<div class="part-note">${escHtml(part.note)}</div>`;
+        if (part.usage) {
+          html += `<div class="part-usage">${escHtml(part.usage)}`;
+          if (part.example) html += `<div class="part-usage-code">${escHtml(part.example)}</div>`;
+          html += `</div>`;
+        }
+        if (!part.desc && !part.note && !part.usage) html += `<div class="part-desc" style="color:var(--text-dim)">（暂无说明）</div>`;
+
+        html += `<div class="l2-toggle" onclick="toggleL2('${l2id}',this)"><span class="l2-arrow">▶</span> 底层是什么</div>`;
+        html += `<div class="l2-body" id="${l2id}">`;
+        html += `<div class="l2-label">底层 C# 逻辑（简化模型）</div>`;
+        html += `<div class="l2-code">${escHtml(stub.code)}</div>`;
+        html += `<div class="l2-explain">${escHtml(stub.explain)}</div>`;
+        html += `</div>`;
+
+        html += `</div></div>`; // part-right, part-card
+      });
+      html += `</div>`; // parts-wrap
+    } else {
+      html += `<div class="parts-wrap" style="color:var(--text-dim);font-size:11px;">暂无拆解部分</div>`;
+    }
+    html += `</div>`; // line-block
+  });
+
+  outputEl.innerHTML = html;
+  bindCardHover();
+  bindTokenHover();
+}
+
+function tokColor(pi) {
+  const colors = ['#79b8ff','#d2a8ff','#7ee787','#ffa657','#e3b341','#ff9492','#67d4f8','#f87171'];
+  return colors[pi % colors.length];
+}
+
+function bindCardHover() {
+  document.querySelectorAll('.part-card[data-bid]').forEach(card => {
+    const bid = card.dataset.bid;
+    const pi = parseInt(card.dataset.pi);
+    const codeSnippet = card.dataset.code;
+
+    // Find matching line indices in raw code
+    const rawLines = findLineInRaw(codeSnippet);
+
+    card.addEventListener('mouseenter', () => {
+      // Highlight in code-in-output
+      const codeEl = document.getElementById(bid + '-code');
+      codeEl?.querySelectorAll(`.tok-${pi%8}[data-tok="${pi}"]`).forEach(t => {
+        t.style.outline = `2px solid ${tokColor(pi)}`;
+        t.style.outlineOffset = '1px';
+      });
+      // Highlight raw code lines in col 1
+      highlightRawLines(rawLines, true);
+      // Scroll col1 to first matched line
+      if (rawLines.length > 0) {
+        const displayEl = document.getElementById('code-display');
+        const lineEl = displayEl.querySelector(`.code-line[data-line="${rawLines[0]}"]`);
+        if (lineEl) lineEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      }
+    });
+    card.addEventListener('mouseleave', () => {
+      const codeEl = document.getElementById(bid + '-code');
+      codeEl?.querySelectorAll(`.tok-${pi%8}[data-tok="${pi}"]`).forEach(t => {
+        t.style.outline = '';
+        t.style.outlineOffset = '';
+      });
+      highlightRawLines(rawLines, false);
+    });
+  });
+}
+
+function bindTokenHover() {
+  document.querySelectorAll('.line-code-text .tok-0, .line-code-text .tok-1, .line-code-text .tok-2, .line-code-text .tok-3, .line-code-text .tok-4, .line-code-text .tok-5, .line-code-text .tok-6, .line-code-text .tok-7').forEach(tok => {
+    tok.addEventListener('mouseenter', () => {
+      const pi = tok.dataset.tok;
+      const block = tok.closest('.line-block');
+      block?.querySelectorAll(`.part-card[data-pi="${pi}"]`).forEach(c => c.classList.add('pc-hover'));
+    });
+    tok.addEventListener('mouseleave', () => {
+      const pi = tok.dataset.tok;
+      const block = tok.closest('.line-block');
+      block?.querySelectorAll(`.part-card[data-pi="${pi}"]`).forEach(c => c.classList.remove('pc-hover'));
+    });
+  });
+}
+
+function toggleL2(id, btn) {
+  const el = document.getElementById(id);
+  const open = el.classList.toggle('open');
+  btn.classList.toggle('open', open);
+}
+
+// ═══════════════════════════════════════════════════════
+// RAW INPUT → syntax display
+// ═══════════════════════════════════════════════════════
+const rawInput = document.getElementById('raw-input');
+const codeDisplay = document.getElementById('code-display');
+
+rawInput.addEventListener('input', () => {
+  renderCodeDisplay(rawInput.value);
+  // keep textarea transparent overlay in sync
+});
+
+// Sync scroll
+rawInput.addEventListener('scroll', () => {
+  codeDisplay.scrollTop = rawInput.scrollTop;
+});
+
+// Tab in textarea
+rawInput.addEventListener('keydown', e => {
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const s = rawInput.selectionStart, end = rawInput.selectionEnd;
+    rawInput.value = rawInput.value.slice(0, s) + '  ' + rawInput.value.slice(end);
+    rawInput.selectionStart = rawInput.selectionEnd = s + 2;
+    renderCodeDisplay(rawInput.value);
+  }
+});
+
+// Auto render anno on change
+let annoTimer;
+document.getElementById('anno-input').addEventListener('input', () => {
+  clearTimeout(annoTimer);
+  annoTimer = setTimeout(renderOutput, 700);
+});
+
+// ═══════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escAttr(s) {
+  return String(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ═══════════════════════════════════════════════════════
+// EXAMPLE DATA
+// ═══════════════════════════════════════════════════════
+const EX_CODE = `using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
+
+public class ResManager : MonoBehaviour
+{
+    public static ResManager Instance { get; private set; }
+
+    private Dictionary<string, object> mHandles = new();
+
+    private void Awake()
+    {
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
+    }
+
+    public T Load<T>(string path) where T : Object
+    {
+        T res = Resources.Load<T>(path);
+        if (res is GameObject)
+            return Instantiate(res);
+        return res;
+    }
+
+    public void Unload(GameObject obj)
+    {
+        Destroy(obj);
+        Resources.UnloadUnusedAssets();
+    }
+}`;
+
+const EX_ANNO = `@line
+code: public static ResManager Instance { get; private set; }
+来源: ResManager 类字段
+
+  @part static
+  type: 关键字
+  来自: C# 关键字
+  说明: 属于类本身，不属于某个实例。任何地方通过类名直接访问，全局只有一份
+  注意: 不需要先创建对象，直接 ResManager.Instance 就能拿到
+  怎么用: 其他脚本访问单例
+  示例: ResManager.Instance.Load<Sprite>("path");
+
+  @part private set
+  type: 关键字
+  来自: C# 关键字
+  说明: 外部只能读，不能写。只有 ResManager 类内部才能给 Instance 赋值，防止外部乱改
+  怎么用: 声明时直接写在属性里
+  示例: public static MyClass Instance { get; private set; }
+
+@line
+code: DontDestroyOnLoad(gameObject);
+来源: Awake()
+
+  @part DontDestroyOnLoad()
+  type: 方法
+  来自: Unity 内置
+  说明: 切换场景时保留这个物体。普通物体换场景会被自动销毁，调这个方法可以保留
+  注意: 单例管理器必须调，否则换场景后 Instance 指向被销毁的对象，导致空引用
+  怎么用: 在 Awake() 里对需要跨场景存活的物体调用
+  示例: DontDestroyOnLoad(gameObject);
+
+  @part gameObject
+  type: 属性
+  来自: Unity 内置
+  说明: 当前脚本挂载的那个 GameObject 本身。每个 MonoBehaviour 都有这个快捷属性
+
+@line
+code: T res = Resources.Load<T>(path);
+来源: Load<T>()
+
+  @part Resources.Load<T>()
+  type: 方法
+  来自: Unity 内置
+  说明: 从 Resources 文件夹同步加载资源，T 指定类型。加载完成才执行下一行
+  注意: 资源必须放在名为 Resources 的文件夹内，路径不含扩展名
+  怎么用: 传入路径，获取资源对象
+  示例: Sprite sp = Resources.Load<Sprite>("Images/Player");
+
+  @part where T : Object
+  type: 关键字
+  来自: C# 关键字
+  说明: 泛型约束，限制 T 只能是 Unity 的 Object 类型或其子类，防止传入 int、string 这类非资源类型
+
+@line
+code: return Instantiate(res);
+来源: Load<T>()
+
+  @part Instantiate()
+  type: 方法
+  来自: Unity 内置
+  说明: 克隆一个对象并放入场景。Resources.Load 拿到的是模板，Instantiate 才是真正创建游戏里看得见的那个
+  注意: 每调一次创建一个新物体，不会自动销毁，要手动 Destroy
+  怎么用: 传入 Prefab 或已有对象，返回克隆体
+  示例: GameObject enemy = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+
+@line
+code: Resources.UnloadUnusedAssets();
+来源: Unload()
+
+  @part Resources.UnloadUnusedAssets()
+  type: 方法
+  来自: Unity 内置
+  说明: 扫描内存，把已加载但当前没有任何对象引用的资源从内存里清除，释放内存
+  注意: 是异步操作，不会立刻完成。频繁调用影响性能，通常在切换场景时调一次
+  怎么用: 场景切换后清理内存
+  示例: Resources.UnloadUnusedAssets();`;
+
+function loadExample() {
+  document.getElementById('raw-input').value = EX_CODE;
+  document.getElementById('anno-input').value = EX_ANNO;
+  renderCodeDisplay(EX_CODE);
+  renderOutput();
+}
+
+function clearAll() {
+  document.getElementById('raw-input').value = '';
+  document.getElementById('anno-input').value = '';
+  codeDisplay.innerHTML = '';
+  document.getElementById('output').style.display = 'none';
+  document.getElementById('empty-state').style.display = 'flex';
+}
+</script>
+</body>
+</html>
