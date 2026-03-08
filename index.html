@@ -1,0 +1,840 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论文图片编号修复工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --ink: #1a1410;
+    --paper: #f7f3ed;
+    --cream: #ede8e0;
+    --red: #c0392b;
+    --red-light: #e8d5d3;
+    --gold: #8b6914;
+    --border: #c8bfb0;
+    --mono: 'JetBrains Mono', monospace;
+    --serif: 'Noto Serif SC', serif;
+  }
+
+  html { font-size: 16px; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 48px 24px 80px;
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(140,120,90,.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(140,120,90,.06) 1px, transparent 1px);
+    background-size: 32px 32px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 680px;
+  }
+
+  /* Header */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    font-size: clamp(26px, 5vw, 38px);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--ink);
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 14px;
+    color: #6b5f52;
+    line-height: 1.7;
+  }
+
+  /* Divider */
+  .rule {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0;
+  }
+  .rule::before, .rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .rule-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--gold);
+    opacity: .6;
+  }
+
+  /* Card */
+  .card {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 32px;
+    box-shadow: 0 2px 12px rgba(0,0,0,.06), 0 0 0 1px rgba(255,255,255,.8) inset;
+    margin-bottom: 20px;
+  }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--cream);
+  }
+
+  /* Drop zone */
+  #dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 4px;
+    padding: 40px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all .2s;
+    background: var(--paper);
+    position: relative;
+  }
+  #dropzone:hover, #dropzone.drag-over {
+    border-color: var(--gold);
+    background: #fdf9f3;
+  }
+  #dropzone.has-file {
+    border-color: #4a8c5c;
+    background: #f3faf5;
+  }
+
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 12px;
+    display: block;
+    opacity: .5;
+  }
+
+  .drop-label {
+    font-size: 14px;
+    color: #7a6f64;
+    line-height: 1.6;
+  }
+  .drop-label strong { color: var(--ink); }
+
+  #file-input { display: none; }
+
+  .file-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: #4a8c5c;
+    margin-top: 8px;
+    font-weight: 500;
+  }
+
+  /* Config */
+  .config-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: #7a6f64;
+    margin-bottom: 6px;
+  }
+
+  input[type="text"], input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--paper);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color .15s;
+  }
+  input:focus { border-color: var(--gold); }
+
+  .hint {
+    font-size: 12px;
+    color: #9e8e7e;
+    margin-top: 5px;
+    line-height: 1.5;
+  }
+
+  /* Button */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 28px;
+    border: none;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: .08em;
+    cursor: pointer;
+    transition: all .15s;
+    font-weight: 500;
+  }
+  .btn-primary {
+    background: var(--ink);
+    color: var(--paper);
+    width: 100%;
+    justify-content: center;
+    font-size: 14px;
+    padding: 14px;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #2d241c;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,.2);
+  }
+  .btn-primary:disabled {
+    opacity: .4;
+    cursor: not-allowed;
+  }
+  .btn-download {
+    background: #4a8c5c;
+    color: #fff;
+    width: 100%;
+    justify-content: center;
+    font-size: 14px;
+    padding: 14px;
+  }
+  .btn-download:hover {
+    background: #3d7a4e;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(74,140,92,.3);
+  }
+
+  /* Log */
+  #log {
+    display: none;
+  }
+
+  .log-body {
+    background: #1a1410;
+    border-radius: 3px;
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.8;
+    max-height: 280px;
+    overflow-y: auto;
+    color: #c8bfb0;
+  }
+
+  .log-line { display: block; }
+  .log-ok { color: #7ec89a; }
+  .log-warn { color: #e8c87a; }
+  .log-err { color: #e88a7a; }
+  .log-info { color: #8ab4e8; }
+  .log-dim { color: #6b5f52; }
+
+  /* Result table */
+  #result-table {
+    display: none;
+  }
+
+  .table-wrap {
+    overflow-x: auto;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: var(--gold);
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--paper);
+  }
+  td {
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--cream);
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #fdf9f3; }
+  .td-old { color: var(--red); }
+  .td-new { color: #3d7a4e; font-weight: 500; }
+  .td-caption { color: #5a4f44; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-family: var(--mono);
+  }
+  .badge-same { background: var(--cream); color: #9e8e7e; }
+  .badge-changed { background: #fef3c7; color: #92400e; }
+
+  /* Progress */
+  .progress-bar {
+    height: 3px;
+    background: var(--cream);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 12px 0;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 2px;
+    transition: width .3s;
+    width: 0%;
+  }
+
+  /* Footer note */
+  .note {
+    font-size: 12px;
+    color: #9e8e7e;
+    text-align: center;
+    line-height: 1.7;
+    margin-top: 8px;
+  }
+
+  /* Spinner */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin .7s linear infinite;
+  }
+
+  /* Fade in */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card { animation: fadeUp .4s ease both; }
+  .card:nth-child(2) { animation-delay: .08s; }
+  .card:nth-child(3) { animation-delay: .16s; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <p class="eyebrow">学术论文辅助工具</p>
+    <h1>图片编号自动修复</h1>
+    <p class="subtitle">上传 .docx 文件，自动按图片在文档中的出现顺序<br>重新编号，并同步更新正文中的所有引用。</p>
+  </header>
+
+  <!-- 上传 -->
+  <div class="card">
+    <div class="card-title">01 / 上传文件</div>
+    <div id="dropzone" onclick="document.getElementById('file-input').click()">
+      <span class="drop-icon">📄</span>
+      <div class="drop-label">
+        <strong>点击选择</strong>或拖拽 .docx 文件到此处
+      </div>
+      <div class="file-name" id="file-label"></div>
+    </div>
+    <input type="file" id="file-input" accept=".docx">
+  </div>
+
+  <!-- 配置 -->
+  <div class="card">
+    <div class="card-title">02 / 编号规则</div>
+    <div class="config-row">
+      <div>
+        <label>章节编号</label>
+        <input type="text" id="cfg-chapter" value="4" placeholder="如：4">
+        <p class="hint">图片编号的前缀（图X.Y中的X）</p>
+      </div>
+      <div>
+        <label>起始序号</label>
+        <input type="number" id="cfg-start" value="1" min="1">
+        <p class="hint">第一张图的序号</p>
+      </div>
+    </div>
+    <div>
+      <label>图片标题前缀</label>
+      <input type="text" id="cfg-prefix" value="图" placeholder="图">
+      <p class="hint">识别图片标题段落时匹配的前缀字符</p>
+    </div>
+  </div>
+
+  <!-- 执行 -->
+  <div class="card">
+    <div class="card-title">03 / 执行</div>
+    <button class="btn btn-primary" id="btn-run" disabled>
+      开始处理
+    </button>
+    <div class="progress-bar" id="progress-wrap" style="display:none">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+  </div>
+
+  <!-- 日志 -->
+  <div class="card" id="log">
+    <div class="card-title">处理日志</div>
+    <div class="log-body" id="log-body"></div>
+  </div>
+
+  <!-- 结果表 -->
+  <div class="card" id="result-table">
+    <div class="card-title">编号变更预览</div>
+    <div class="table-wrap">
+      <table id="mapping-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>旧编号</th>
+            <th>新编号</th>
+            <th>图片标题</th>
+            <th>状态</th>
+          </tr>
+        </thead>
+        <tbody id="mapping-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 下载 -->
+  <div class="card" id="download-card" style="display:none">
+    <div class="card-title">04 / 下载</div>
+    <button class="btn btn-download" id="btn-download">
+      ⬇ 下载修改后的文档
+    </button>
+    <p class="note" style="margin-top:12px">
+      建议下载后与原文档对比确认，特别检查同一段落含多张图的情况。
+    </p>
+  </div>
+
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────
+let docxFile = null;
+let resultBlob = null;
+let resultFilename = '';
+
+// ─── UI helpers ───────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+
+function log(msg, cls = '') {
+  const el = $('log-body');
+  const line = document.createElement('span');
+  line.className = 'log-line ' + (cls ? 'log-' + cls : 'log-dim');
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(pct) {
+  $('progress-fill').style.width = pct + '%';
+}
+
+// ─── Drag & Drop ──────────────────────────────────────────────────────────
+const dz = $('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault();
+  dz.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.name.endsWith('.docx')) loadFile(f);
+  else alert('请上传 .docx 格式的文件');
+});
+
+$('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(f) {
+  docxFile = f;
+  $('file-label').textContent = '✓ ' + f.name;
+  dz.classList.add('has-file');
+  $('btn-run').disabled = false;
+  resultBlob = null;
+  $('download-card').style.display = 'none';
+  $('result-table').style.display = 'none';
+  $('log').style.display = 'none';
+  $('log-body').innerHTML = '';
+  $('mapping-tbody').innerHTML = '';
+}
+
+// ─── Core XML helpers ─────────────────────────────────────────────────────
+function getRunRpr(runXml) {
+  const m = runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/);
+  return m ? m[0] : '';
+}
+
+function makeRun(rpr, text) {
+  const needPreserve = text !== text.trim() || text.includes('  ');
+  const sp = needPreserve ? ' xml:space="preserve"' : '';
+  // Escape XML special chars
+  const escaped = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `<w:r>${rpr}<w:t${sp}>${escaped}</w:t></w:r>`;
+}
+
+function getParaText(paraXml) {
+  return [...paraXml.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)]
+    .map(m => m[1]).join('').trim();
+}
+
+function unescapeXml(s) {
+  return s.replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&apos;/g,"'");
+}
+
+// ─── Paragraph rewriter ───────────────────────────────────────────────────
+function rewritePara(paraXml, newNumsArr, prefix, chapter) {
+  const runRe = /<w:r[ >][\s\S]*?<\/w:r>/g;
+  const runMatches = [...paraXml.matchAll(runRe)];
+  if (!runMatches.length) return paraXml;
+
+  const runs = runMatches.map(m => ({
+    start: m.index, end: m.index + m[0].length,
+    xml: m[0],
+    text: unescapeXml([...m[0].matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(t=>t[1]).join(''))
+  }));
+
+  const replacements = {}; // index -> new xml string
+  let skipUntil = -1;
+  let numIdx = 0;
+
+  const numPrefix = chapter + '.'; // e.g. "4."
+  const figRe = new RegExp(prefix); // e.g. /图/
+
+  for (let i = 0; i < runs.length; i++) {
+    if (i <= skipUntil) continue;
+    const { xml: rxml, text: rtext } = runs[i];
+
+    if (!figRe.test(rtext)) continue;
+
+    // Find each 图 in this run
+    let figPos = -1;
+    while ((figPos = rtext.indexOf(prefix, figPos + 1)) !== -1) {
+      const afterFig = rtext.slice(figPos + prefix.length);
+
+      // Find start run for number
+      let startRunIdx;
+      if (/^\s*\d/.test(afterFig) && afterFig.trimStart().startsWith(chapter.charAt(0))) {
+        startRunIdx = i;
+      } else if (i + 1 < runs.length && /^\s*\d/.test(runs[i+1].text) &&
+                 runs[i+1].text.trimStart().startsWith(chapter.charAt(0))) {
+        startRunIdx = i + 1;
+      } else {
+        continue;
+      }
+
+      // Collect runs forming "X.YY"
+      const collected = [];
+      let j;
+      if (startRunIdx === i) {
+        collected.push({ idx: i, text: afterFig });
+        j = i + 1;
+      } else {
+        collected.push({ idx: startRunIdx, text: runs[startRunIdx].text });
+        j = startRunIdx + 1;
+      }
+
+      let combined = collected.map(c=>c.text).join('');
+      const numPattern = new RegExp('^(' + chapter.replace('.','[.．]') + '[.．]\\s*\\d+)');
+      let numMatch = combined.match(numPattern);
+
+      if (!numMatch) {
+        while (j < runs.length && !numMatch) {
+          collected.push({ idx: j, text: runs[j].text });
+          combined += runs[j].text;
+          j++;
+          numMatch = combined.match(numPattern);
+        }
+      }
+
+      // Extend with pure digit runs
+      if (numMatch) {
+        while (j < runs.length && /^\d+/.test(runs[j].text)) {
+          collected.push({ idx: j, text: runs[j].text });
+          combined += runs[j].text;
+          j++;
+          numMatch = combined.match(numPattern);
+        }
+      }
+
+      if (!numMatch || numIdx >= newNumsArr.length) continue;
+
+      const figNumStr = numMatch[1];
+      const afterNum = combined.slice(figNumStr.length);
+      const newNum = newNumsArr[numIdx++];
+      const rpr = getRunRpr(runs[collected[0].idx].xml);
+
+      skipUntil = Math.max(skipUntil, ...collected.map(c=>c.idx));
+
+      if (startRunIdx === i) {
+        const keepPart = rtext.slice(0, figPos + prefix.length);
+        let newXml = makeRun(getRunRpr(rxml), keepPart) + makeRun(rpr, `${chapter}.${newNum}`);
+        if (afterNum.trim()) newXml += makeRun(rpr, afterNum);
+        replacements[i] = newXml;
+        for (const c of collected.slice(1)) replacements[c.idx] = '';
+      } else {
+        let newXml = makeRun(rpr, `${chapter}.${newNum}`);
+        if (afterNum.trim()) newXml += makeRun(rpr, afterNum);
+        replacements[collected[0].idx] = newXml;
+        for (const c of collected.slice(1)) replacements[c.idx] = '';
+      }
+    }
+  }
+
+  // Apply in reverse
+  let result = paraXml;
+  for (const idx of Object.keys(replacements).map(Number).sort((a,b)=>b-a)) {
+    result = result.slice(0, runs[idx].start) + replacements[idx] + result.slice(runs[idx].end);
+  }
+  return result;
+}
+
+// ─── Main processing ──────────────────────────────────────────────────────
+$('btn-run').addEventListener('click', async () => {
+  if (!docxFile) return;
+
+  const chapter = $('cfg-chapter').value.trim() || '4';
+  const startSeq = parseInt($('cfg-start').value) || 1;
+  const prefix = $('cfg-prefix').value || '图';
+
+  $('btn-run').disabled = true;
+  $('btn-run').innerHTML = '<span class="spinner"></span> 处理中…';
+  $('log').style.display = 'block';
+  $('log-body').innerHTML = '';
+  $('progress-wrap').style.display = 'block';
+  setProgress(5);
+
+  await new Promise(r => setTimeout(r, 30));
+
+  try {
+    log(`读取文件: ${docxFile.name}`, 'info');
+    const arrayBuffer = await docxFile.arrayBuffer();
+    const zip = await JSZip.loadAsync(arrayBuffer);
+    setProgress(15);
+
+    const xmlRaw = await zip.file('word/document.xml').async('string');
+    log(`XML 大小: ${(xmlRaw.length/1024).toFixed(1)} KB`, 'dim');
+    setProgress(20);
+
+    // Split into paragraphs
+    const paraRe = /<w:p[ >][\s\S]*?<\/w:p>/g;
+    const paraMatches = [...xmlRaw.matchAll(paraRe)];
+    log(`段落总数: ${paraMatches.length}`, 'dim');
+    setProgress(25);
+
+    const captionPattern = new RegExp('^\\s*' + prefix + '\\s*' + chapter.replace('.','[.．]') + '\\s*[.．]');
+
+    // Find captions and assign sequential numbers
+    let seq = startSeq - 1;
+    const captionList = []; // { match, fullText, oldNums, newNums }
+
+    for (const m of paraMatches) {
+      const full = getParaText(m[0]);
+      if (captionPattern.test(full)) {
+        const numRe = new RegExp(prefix + '\\s*' + chapter.replace('.','[.．]') + '\\s*[.．]\\s*(\\d+)', 'g');
+        const oldNums = [...full.matchAll(numRe)].map(x => parseInt(x[1]));
+        const newNums = oldNums.map(() => ++seq);
+        captionList.push({ match: m, fullText: full, oldNums, newNums });
+      }
+    }
+
+    log(`检测到图片标题段落: ${captionList.length} 个`, 'ok');
+    log(`编号范围: ${prefix}${chapter}.${startSeq} → ${prefix}${chapter}.${seq}`, 'ok');
+    setProgress(35);
+
+    // Build ordered body queue
+    const bodyQueue = {};
+    for (const cap of captionList) {
+      for (let k = 0; k < cap.oldNums.length; k++) {
+        const old = cap.oldNums[k];
+        if (!bodyQueue[old]) bodyQueue[old] = [];
+        bodyQueue[old].push(cap.newNums[k]);
+      }
+    }
+    // Convert to queues
+    const queues = {};
+    for (const [k,v] of Object.entries(bodyQueue)) queues[k] = [...v];
+
+    // Build replacement map: old para xml -> new para xml
+    const captionXmlSet = new Set(captionList.map(c => c.match[0]));
+    const paraReplacements = new Map();
+
+    // Process captions
+    let captionChanged = 0;
+    for (const cap of captionList) {
+      const newPara = rewritePara(cap.match[0], cap.newNums, prefix, chapter);
+      if (newPara !== cap.match[0]) {
+        paraReplacements.set(cap.match[0], newPara);
+        captionChanged++;
+      }
+    }
+    log(`标题段落处理完成: ${captionChanged} 个有变更`, 'ok');
+    setProgress(55);
+
+    // Process body paragraphs
+    let bodyChanged = 0;
+    const numRePat = new RegExp(prefix + '\\s*' + chapter.replace('.','[.．]') + '\\s*[.．]\\s*(\\d+)', 'g');
+
+    for (const m of paraMatches) {
+      const oldPara = m[0];
+      if (captionXmlSet.has(oldPara)) continue;
+      const full = getParaText(oldPara);
+      const refs = [...full.matchAll(numRePat)].map(x => parseInt(x[1]));
+      if (!refs.length) continue;
+
+      const newNums = refs.map(old => {
+        if (queues[old] && queues[old].length > 0) return queues[old].shift();
+        return old; // fallback: keep original
+      });
+
+      const newPara = rewritePara(oldPara, newNums, prefix, chapter);
+      if (newPara !== oldPara) {
+        paraReplacements.set(oldPara, newPara);
+        bodyChanged++;
+      }
+    }
+    log(`正文引用段落处理完成: ${bodyChanged} 个有变更`, 'ok');
+    setProgress(70);
+
+    // Apply all replacements
+    let newXml = xmlRaw;
+    for (const [oldPara, newPara] of paraReplacements) {
+      newXml = newXml.replace(oldPara, newPara);
+    }
+    log(`XML 替换完成`, 'ok');
+    setProgress(80);
+
+    // Repack docx
+    const newZip = new JSZip();
+    for (const [name, file] of Object.entries(zip.files)) {
+      if (name === 'word/document.xml') {
+        newZip.file(name, newXml);
+      } else if (!file.dir) {
+        newZip.file(name, await file.async('arraybuffer'));
+      }
+    }
+
+    resultBlob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    setProgress(95);
+
+    const base = docxFile.name.replace(/\.docx$/i, '');
+    resultFilename = base + '_已更新编号.docx';
+
+    log(`文件打包完成，大小: ${(resultBlob.size/1024).toFixed(1)} KB`, 'ok');
+    log(`准备下载: ${resultFilename}`, 'info');
+    setProgress(100);
+
+    // Build mapping table
+    const tbody = $('mapping-tbody');
+    tbody.innerHTML = '';
+    let serial = 0;
+    for (const cap of captionList) {
+      for (let k = 0; k < cap.oldNums.length; k++) {
+        serial++;
+        const old = cap.oldNums[k];
+        const nw  = cap.newNums[k];
+        const changed = old !== nw;
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="log-dim">${serial}</td>
+          <td class="td-old">${prefix}${chapter}.${old}</td>
+          <td class="td-new">${prefix}${chapter}.${nw}</td>
+          <td class="td-caption">${cap.fullText.replace(new RegExp(prefix + chapter + '\\.' + old, 'g'), '').trim().slice(0,40)}</td>
+          <td>${changed ? '<span class="badge badge-changed">已更新</span>' : '<span class="badge badge-same">不变</span>'}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+    }
+
+    $('result-table').style.display = 'block';
+    $('download-card').style.display = 'block';
+
+    log('━'.repeat(40), 'dim');
+    log(`✓ 全部完成！共处理 ${serial} 张图片`, 'ok');
+
+  } catch (err) {
+    log('错误: ' + err.message, 'err');
+    console.error(err);
+  }
+
+  $('btn-run').disabled = false;
+  $('btn-run').innerHTML = '重新处理';
+});
+
+// Download
+$('btn-download').addEventListener('click', () => {
+  if (!resultBlob) return;
+  const url = URL.createObjectURL(resultBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = resultFilename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+});
+</script>
+</body>
+</html>
