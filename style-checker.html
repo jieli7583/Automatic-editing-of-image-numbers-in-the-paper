@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>论文格式检查器</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#f5f5f0;
+  --panel:#ffffff;
+  --border:#e0ddd8;
+  --ink:#1c1c1c;
+  --muted:#888880;
+  --red:#c0392b;
+  --red-bg:#fdf0ef;
+  --orange:#d35400;
+  --orange-bg:#fef5ee;
+  --green:#27ae60;
+  --green-bg:#edfaf3;
+  --blue:#2980b9;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Noto Sans SC',sans-serif;
+}
+
+body{
+  background:var(--bg);
+  font-family:var(--sans);
+  color:var(--ink);
+  min-height:100vh;
+  display:grid;
+  grid-template-rows:52px 1fr;
+  grid-template-columns:320px 1fr;
+  font-size:14px;
+}
+
+/* ── Header ── */
+header{
+  grid-column:1/-1;
+  background:var(--ink);
+  color:#fff;
+  display:flex;
+  align-items:center;
+  padding:0 24px;
+  gap:16px;
+}
+.logo{font-family:var(--mono);font-size:13px;letter-spacing:.04em}
+.sep{opacity:.2;font-size:18px}
+.tagline{opacity:.45;font-size:12px}
+.hdr-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+
+.btn{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:7px 16px;border:none;border-radius:3px;
+  font-family:var(--sans);font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;white-space:nowrap;
+}
+.btn-ghost{background:rgba(255,255,255,.1);color:#fff}
+.btn-ghost:hover{background:rgba(255,255,255,.2)}
+.btn-primary{background:#fff;color:var(--ink)}
+.btn-primary:hover{background:#eee}
+.btn-action{background:#2d5a8e;color:#fff}
+.btn-action:hover{background:#234a76}
+.btn-dl{background:#2d7d46;color:#fff}
+.btn-dl:hover{background:#246038}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+
+/* ── Left sidebar ── */
+aside{
+  background:var(--panel);
+  border-right:1px solid var(--border);
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+}
+
+.section{padding:18px;border-bottom:1px solid var(--border)}
+.sec-title{
+  font-family:var(--mono);font-size:10px;
+  letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);margin-bottom:14px;
+}
+
+/* Drop zone */
+#dropzone{
+  border:2px dashed var(--border);border-radius:4px;
+  padding:28px 16px;text-align:center;cursor:pointer;
+  transition:all .2s;background:var(--bg);
+}
+#dropzone:hover,#dropzone.over{border-color:#888;background:#eeede8}
+#dropzone.loaded{border-color:var(--green);background:var(--green-bg)}
+.drop-icon{font-size:28px;display:block;margin-bottom:8px;opacity:.5}
+.drop-text{font-size:13px;color:var(--muted);line-height:1.5}
+.drop-text strong{color:var(--ink)}
+#file-input{display:none}
+#file-label{font-family:var(--mono);font-size:11px;color:var(--green);margin-top:6px;display:block}
+
+/* Rules editor */
+.rule-group{margin-bottom:14px}
+.rule-group-title{
+  font-size:11px;font-weight:500;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.08em;
+  margin-bottom:8px;
+}
+
+.rule-row{
+  display:grid;grid-template-columns:1fr auto auto;
+  align-items:center;gap:6px;margin-bottom:6px;
+}
+.rule-label{font-size:12px;color:var(--ink)}
+.rule-input{
+  width:72px;padding:4px 6px;
+  border:1px solid var(--border);border-radius:3px;
+  font-family:var(--mono);font-size:11px;color:var(--ink);
+  background:var(--bg);outline:none;text-align:center;
+}
+.rule-input:focus{border-color:#888}
+.rule-unit{font-size:11px;color:var(--muted);width:24px}
+
+.rule-toggle{
+  display:flex;align-items:center;gap:8px;margin-bottom:8px;
+  font-size:12px;cursor:pointer;user-select:none;
+}
+.rule-toggle input{accent-color:var(--ink)}
+
+/* ── Main content ── */
+main{
+  overflow-y:auto;
+  padding:28px;
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+
+.empty-state{
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  min-height:400px;text-align:center;
+  color:var(--muted);gap:12px;
+}
+.empty-icon{font-size:48px;opacity:.3}
+.empty-text{font-size:14px;line-height:1.7;max-width:320px}
+
+/* Summary bar */
+#summary{display:none}
+.summary-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:12px;
+}
+.stat-card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:4px;
+  padding:16px;
+  text-align:center;
+}
+.stat-num{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px}
+.stat-label{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em}
+.stat-err .stat-num{color:var(--red)}
+.stat-warn .stat-num{color:var(--orange)}
+.stat-ok .stat-num{color:var(--green)}
+
+/* Issues list */
+#issues-wrap{display:none}
+.issues-header{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-bottom:12px;
+}
+.issues-title{font-size:15px;font-weight:500}
+.filter-tabs{display:flex;gap:4px}
+.ftab{
+  padding:4px 10px;border-radius:3px;font-size:12px;
+  border:1px solid var(--border);background:var(--panel);
+  cursor:pointer;transition:all .15s;color:var(--muted);
+}
+.ftab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+.issue-card{
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-left:3px solid transparent;
+  border-radius:4px;
+  padding:14px 16px;
+  margin-bottom:8px;
+  transition:box-shadow .15s;
+}
+.issue-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.issue-card.err{border-left-color:var(--red);background:var(--red-bg)}
+.issue-card.warn{border-left-color:var(--orange);background:var(--orange-bg)}
+
+.issue-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
+.issue-badge{
+  font-family:var(--mono);font-size:10px;font-weight:500;
+  padding:2px 6px;border-radius:2px;white-space:nowrap;flex-shrink:0;
+  margin-top:1px;
+}
+.badge-err{background:var(--red);color:#fff}
+.badge-warn{background:var(--orange);color:#fff}
+.badge-type{
+  font-size:10px;color:var(--muted);font-family:var(--mono);
+  padding:2px 6px;border:1px solid var(--border);border-radius:2px;
+  white-space:nowrap;flex-shrink:0;margin-top:1px;
+}
+.issue-text{font-size:13px;line-height:1.5;flex:1}
+.issue-detail{
+  font-family:var(--mono);font-size:11px;color:var(--muted);
+  margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;
+}
+.issue-detail span{display:flex;align-items:center;gap:4px}
+.detail-actual{color:var(--red)}
+.detail-expected{color:var(--green)}
+
+/* No issues */
+.no-issues{
+  text-align:center;padding:48px;color:var(--muted);
+  background:var(--green-bg);border-radius:4px;
+  border:1px solid #b8e8ca;
+}
+.no-issues-icon{font-size:36px;margin-bottom:8px}
+
+/* Download section */
+#dl-wrap{display:none}
+.dl-card{
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:4px;padding:20px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+}
+.dl-info{font-size:13px;color:var(--muted);line-height:1.6}
+.dl-info strong{color:var(--ink);display:block;margin-bottom:2px}
+
+/* Progress */
+.progress-bar{height:2px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden;display:none}
+.progress-fill{height:100%;background:var(--ink);width:0%;transition:width .3s;border-radius:2px}
+
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{
+  display:inline-block;width:12px;height:12px;
+  border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  border-radius:50%;animation:spin .7s linear infinite;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">论文格式检查器</span>
+  <span class="sep">|</span>
+  <span class="tagline">上传 .docx → 检查格式 → 下载修复版</span>
+  <div class="hdr-actions">
+    <button class="btn btn-action" id="btn-check" disabled>开始检查</button>
+    <button class="btn btn-dl" id="btn-dl" style="display:none">⬇ 下载修复版</button>
+  </div>
+</header>
+
+<aside>
+  <!-- Upload -->
+  <div class="section">
+    <div class="sec-title">文件</div>
+    <div id="dropzone" onclick="document.getElementById('file-input').click()">
+      <span class="drop-icon">📄</span>
+      <div class="drop-text"><strong>点击选择</strong>或拖拽 .docx</div>
+      <span id="file-label"></span>
+    </div>
+    <input type="file" id="file-input" accept=".docx">
+    <div class="progress-bar" id="prog-bar"><div class="progress-fill" id="prog-fill"></div></div>
+  </div>
+
+  <!-- Rules: Font -->
+  <div class="section">
+    <div class="sec-title">字体规范</div>
+    <div class="rule-group">
+      <div class="rule-group-title">正文</div>
+      <div class="rule-row">
+        <span class="rule-label">中文字体</span>
+        <input class="rule-input" id="r-body-cn-font" value="宋体" style="width:80px">
+        <span class="rule-unit"></span>
+      </div>
+      <div class="rule-row">
+        <span class="rule-label">英文字体</span>
+        <input class="rule-input" id="r-body-en-font" value="Times New Roman" style="width:80px">
+        <span class="rule-unit"></span>
+      </div>
+      <div class="rule-row">
+        <span class="rule-label">字号</span>
+        <input class="rule-input" id="r-body-size" value="12" type="number">
+        <span class="rule-unit">pt</span>
+      </div>
+    </div>
+    <div class="rule-group">
+      <div class="rule-group-title">一级标题</div>
+      <div class="rule-row">
+        <span class="rule-label">字体</span>
+        <input class="rule-input" id="r-h1-font" value="黑体" style="width:80px">
+        <span class="rule-unit"></span>
+      </div>
+      <div class="rule-row">
+        <span class="rule-label">字号</span>
+        <input class="rule-input" id="r-h1-size" value="16" type="number">
+        <span class="rule-unit">pt</span>
+      </div>
+    </div>
+    <div class="rule-group">
+      <div class="rule-group-title">二级标题</div>
+      <div class="rule-row">
+        <span class="rule-label">字体</span>
+        <input class="rule-input" id="r-h2-font" value="黑体" style="width:80px">
+        <span class="rule-unit"></span>
+      </div>
+      <div class="rule-row">
+        <span class="rule-label">字号</span>
+        <input class="rule-input" id="r-h2-size" value="14" type="number">
+        <span class="rule-unit">pt</span>
+      </div>
+    </div>
+    <div class="rule-group">
+      <div class="rule-group-title">三级标题</div>
+      <div class="rule-row">
+        <span class="rule-label">字体</span>
+        <input class="rule-input" id="r-h3-font" value="宋体" style="width:80px">
+        <span class="rule-unit"></span>
+      </div>
+      <div class="rule-row">
+        <span class="rule-label">字号</span>
+        <input class="rule-input" id="r-h3-size" value="12" type="number">
+        <span class="rule-unit">pt</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rules: Spacing -->
+  <div class="section">
+    <div class="sec-title">行距 / 段间距</div>
+    <div class="rule-row">
+      <span class="rule-label">正文行距</span>
+      <input class="rule-input" id="r-line-spacing" value="1.5" type="number" step="0.25">
+      <span class="rule-unit">倍</span>
+    </div>
+    <div class="rule-row">
+      <span class="rule-label">段前间距</span>
+      <input class="rule-input" id="r-space-before" value="0" type="number">
+      <span class="rule-unit">pt</span>
+    </div>
+    <div class="rule-row">
+      <span class="rule-label">段后间距</span>
+      <input class="rule-input" id="r-space-after" value="0" type="number">
+      <span class="rule-unit">pt</span>
+    </div>
+    <div class="rule-row" style="margin-top:8px">
+      <span class="rule-label">行距容差</span>
+      <input class="rule-input" id="r-spacing-tol" value="0.1" type="number" step="0.05">
+      <span class="rule-unit">倍</span>
+    </div>
+  </div>
+
+  <!-- Rules: Margin -->
+  <div class="section">
+    <div class="sec-title">页边距</div>
+    <div class="rule-row">
+      <span class="rule-label">上</span>
+      <input class="rule-input" id="r-margin-top" value="25.4" type="number" step="0.1">
+      <span class="rule-unit">mm</span>
+    </div>
+    <div class="rule-row">
+      <span class="rule-label">下</span>
+      <input class="rule-input" id="r-margin-bottom" value="25.4" type="number" step="0.1">
+      <span class="rule-unit">mm</span>
+    </div>
+    <div class="rule-row">
+      <span class="rule-label">左</span>
+      <input class="rule-input" id="r-margin-left" value="31.8" type="number" step="0.1">
+      <span class="rule-unit">mm</span>
+    </div>
+    <div class="rule-row">
+      <span class="rule-label">右</span>
+      <input class="rule-input" id="r-margin-right" value="25.4" type="number" step="0.1">
+      <span class="rule-unit">mm</span>
+    </div>
+    <div class="rule-row" style="margin-top:8px">
+      <span class="rule-label">容差</span>
+      <input class="rule-input" id="r-margin-tol" value="1" type="number" step="0.5">
+      <span class="rule-unit">mm</span>
+    </div>
+  </div>
+
+  <!-- Options -->
+  <div class="section">
+    <div class="sec-title">选项</div>
+    <label class="rule-toggle"><input type="checkbox" id="opt-autofix" checked> 自动修复可修复项</label>
+    <label class="rule-toggle"><input type="checkbox" id="opt-skip-toc" checked> 跳过目录页</label>
+    <label class="rule-toggle"><input type="checkbox" id="opt-skip-cover" checked> 跳过封面/声明页</label>
+  </div>
+</aside>
+
+<main id="main">
+  <div class="empty-state" id="empty">
+    <div class="empty-icon">🔍</div>
+    <div class="empty-text">上传 .docx 文件，配置格式规范，点击"开始检查"</div>
+  </div>
+
+  <div id="summary"></div>
+  <div id="issues-wrap"></div>
+  <div id="dl-wrap"></div>
+</main>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────
+let docxFile = null;
+let fixedBlob = null;
+let allIssues = [];
+let currentFilter = 'all';
+
+// ─── Drag & drop ──────────────────────────────────────────────────────────
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('over'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('over');
+  const f = e.dataTransfer.files[0];
+  if (f?.name.endsWith('.docx')) loadFile(f);
+  else alert('请上传 .docx 格式文件');
+});
+document.getElementById('file-input').addEventListener('change', e => {
+  if (e.target.files[0]) loadFile(e.target.files[0]);
+});
+
+function loadFile(f) {
+  docxFile = f;
+  document.getElementById('file-label').textContent = '✓ ' + f.name;
+  dz.classList.add('loaded');
+  document.getElementById('btn-check').disabled = false;
+  fixedBlob = null;
+  document.getElementById('btn-dl').style.display = 'none';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('issues-wrap').style.display = 'none';
+  document.getElementById('dl-wrap').style.display = 'none';
+  document.getElementById('empty').style.display = 'flex';
+}
+
+// ─── Unit helpers ─────────────────────────────────────────────────────────
+// Word uses twips (1/20 pt), EMUs (914400 per inch), and dxa (1/20 pt = twip)
+const EMU_PER_MM   = 36000;   // 914400/25.4
+const TWIP_PER_PT  = 20;
+const TWIP_PER_MM  = 56.6929; // 1440/25.4
+
+function twipToMm(twip) { return twip / TWIP_PER_MM; }
+function twipToPt(twip) { return twip / TWIP_PER_PT; }
+function ptToTwip(pt)   { return Math.round(pt * TWIP_PER_PT); }
+function mmToTwip(mm)   { return Math.round(mm * TWIP_PER_MM); }
+
+// ─── XML helpers ─────────────────────────────────────────────────────────
+function attr(xml, tag, attrName) {
+  const re = new RegExp('<' + tag + '[^>]*\\s' + attrName + '="([^"]*)"', 'i');
+  const m = xml.match(re);
+  return m ? m[1] : null;
+}
+
+function getParaText(p) {
+  return [...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('').trim();
+}
+
+function getStyle(p) {
+  const m = p.match(/<w:pStyle\s+w:val="([^"]+)"/);
+  return m ? m[1] : 'normal';
+}
+
+// ─── Rules getter ─────────────────────────────────────────────────────────
+function getRules() {
+  const v = id => document.getElementById(id).value;
+  const n = id => parseFloat(document.getElementById(id).value);
+  return {
+    body: { cnFont: v('r-body-cn-font'), enFont: v('r-body-en-font'), sizePt: n('r-body-size') },
+    h1:   { font: v('r-h1-font'),   sizePt: n('r-h1-size') },
+    h2:   { font: v('r-h2-font'),   sizePt: n('r-h2-size') },
+    h3:   { font: v('r-h3-font'),   sizePt: n('r-h3-size') },
+    lineSpacing:  n('r-line-spacing'),
+    spacingTol:   n('r-spacing-tol'),
+    spaceBefore:  n('r-space-before'),
+    spaceAfter:   n('r-space-after'),
+    margins: {
+      top:    n('r-margin-top'),
+      bottom: n('r-margin-bottom'),
+      left:   n('r-margin-left'),
+      right:  n('r-margin-right'),
+      tol:    n('r-margin-tol'),
+    },
+    autofix:    document.getElementById('opt-autofix').checked,
+    skipToc:    document.getElementById('opt-skip-toc').checked,
+    skipCover:  document.getElementById('opt-skip-cover').checked,
+  };
+}
+
+// ─── Identify heading level ───────────────────────────────────────────────
+function getHeadingLevel(styleVal) {
+  if (!styleVal) return 0;
+  const s = styleVal.toLowerCase();
+  if (s === '1' || s === 'heading1' || s.includes('1级') || s.includes('1-')) return 1;
+  if (s === '2' || s === 'heading2' || s.includes('2级') || s.includes('2-')) return 2;
+  if (s === '3' || s === 'heading3' || s.includes('3级') || s.includes('3-')) return 3;
+  // Numeric style IDs from Chinese Word templates
+  if (s === '10') return 1;
+  if (s === '21') return 2;
+  if (s === '31') return 3;
+  return 0;
+}
+
+// ─── Check font in a paragraph ────────────────────────────────────────────
+function checkParaFont(pXml, expectedCn, expectedEn, expectedSizePt, paraIdx, label) {
+  const issues = [];
+  const runs = [...pXml.matchAll(/<w:r[ >][\s\S]*?<\/w:r>/g)];
+  
+  for (const run of runs) {
+    const text = [...run[0].matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
+    if (!text.trim()) continue;
+
+    // Font check
+    const cnFont = attr(run[0], 'w:rFonts', 'w:eastAsia') || attr(run[0], 'w:rFonts', 'w:hint');
+    const enFont = attr(run[0], 'w:rFonts', 'w:ascii') || attr(run[0], 'w:rFonts', 'w:hAnsi');
+    
+    // Size check (w:sz is half-points)
+    const szRaw = attr(run[0], 'w:sz', 'w:val');
+    const szPt = szRaw ? parseInt(szRaw) / 2 : null;
+
+    if (cnFont && expectedCn && !cnFont.includes(expectedCn)) {
+      issues.push({
+        level: 'warn', type: '字体',
+        para: paraIdx, label,
+        text: `中文字体应为"${expectedCn}"，实际为"${cnFont}"`,
+        actual: cnFont, expected: expectedCn,
+        fixable: true,
+      });
+    }
+    if (enFont && expectedEn && !enFont.includes(expectedEn) && /[a-zA-Z]/.test(text)) {
+      issues.push({
+        level: 'warn', type: '字体',
+        para: paraIdx, label,
+        text: `英文字体应为"${expectedEn}"，实际为"${enFont}"`,
+        actual: enFont, expected: expectedEn,
+        fixable: true,
+      });
+    }
+    if (szPt !== null && Math.abs(szPt - expectedSizePt) > 0.5) {
+      issues.push({
+        level: 'err', type: '字号',
+        para: paraIdx, label,
+        text: `字号应为 ${expectedSizePt}pt，实际为 ${szPt}pt`,
+        actual: szPt + 'pt', expected: expectedSizePt + 'pt',
+        fixable: true,
+      });
+    }
+    break; // Only check first substantive run per paragraph to avoid spam
+  }
+  return issues;
+}
+
+// ─── Check paragraph spacing ──────────────────────────────────────────────
+function checkSpacing(pXml, rules, paraIdx, label, isBody) {
+  const issues = [];
+  if (!isBody) return issues;
+
+  // Line spacing: w:spacing w:line (twips) and w:lineRule
+  const lineVal  = attr(pXml, 'w:spacing', 'w:line');
+  const lineRule = attr(pXml, 'w:spacing', 'w:lineRule');
+  const beforeVal = attr(pXml, 'w:spacing', 'w:before');
+  const afterVal  = attr(pXml, 'w:spacing', 'w:after');
+
+  if (lineVal && lineRule === 'auto') {
+    // w:line is in twips, 240 = single, 360 = 1.5x
+    const actualMult = parseInt(lineVal) / 240;
+    const expected = rules.lineSpacing;
+    if (Math.abs(actualMult - expected) > rules.spacingTol) {
+      issues.push({
+        level: 'warn', type: '行距',
+        para: paraIdx, label,
+        text: `行距应为 ${expected} 倍，实际为 ${actualMult.toFixed(2)} 倍`,
+        actual: actualMult.toFixed(2) + '倍', expected: expected + '倍',
+        fixable: true,
+      });
+    }
+  }
+
+  if (beforeVal !== null) {
+    const bPt = twipToPt(parseInt(beforeVal));
+    if (Math.abs(bPt - rules.spaceBefore) > 1) {
+      issues.push({
+        level: 'warn', type: '段间距',
+        para: paraIdx, label,
+        text: `段前间距应为 ${rules.spaceBefore}pt，实际为 ${bPt.toFixed(1)}pt`,
+        actual: bPt.toFixed(1) + 'pt', expected: rules.spaceBefore + 'pt',
+        fixable: true,
+      });
+    }
+  }
+  if (afterVal !== null) {
+    const aPt = twipToPt(parseInt(afterVal));
+    if (Math.abs(aPt - rules.spaceAfter) > 1) {
+      issues.push({
+        level: 'warn', type: '段间距',
+        para: paraIdx, label,
+        text: `段后间距应为 ${rules.spaceAfter}pt，实际为 ${aPt.toFixed(1)}pt`,
+        actual: aPt.toFixed(1) + 'pt', expected: rules.spaceAfter + 'pt',
+        fixable: true,
+      });
+    }
+  }
+  return issues;
+}
+
+// ─── Check page margins ───────────────────────────────────────────────────
+function checkMargins(sectXml, rules) {
+  const issues = [];
+  const sides = ['top','bottom','left','right'];
+  for (const side of sides) {
+    const val = attr(sectXml, 'w:pgMar', 'w:' + side);
+    if (!val) continue;
+    const actualMm = twipToMm(parseInt(val));
+    const expectedMm = rules.margins[side];
+    if (Math.abs(actualMm - expectedMm) > rules.margins.tol) {
+      issues.push({
+        level: 'err', type: '页边距',
+        para: -1, label: '页面设置',
+        text: `${side === 'top' ? '上' : side === 'bottom' ? '下' : side === 'left' ? '左' : '右'}边距应为 ${expectedMm}mm，实际为 ${actualMm.toFixed(1)}mm`,
+        actual: actualMm.toFixed(1) + 'mm', expected: expectedMm + 'mm',
+        fixable: true,
+      });
+    }
+  }
+  return issues;
+}
+
+// ─── Auto-fix helpers ─────────────────────────────────────────────────────
+function fixRunFont(runXml, cnFont, enFont, sizePt) {
+  // Build or replace rPr/rFonts
+  let rpr = runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] || '';
+  
+  // Fix fonts
+  if (rpr.includes('w:rFonts')) {
+    rpr = rpr.replace(/<w:rFonts[^\/]*\/>|<w:rFonts[^>]*>[\s\S]*?<\/w:rFonts>/,
+      `<w:rFonts w:ascii="${enFont}" w:hAnsi="${enFont}" w:eastAsia="${cnFont}"/>`);
+  } else {
+    rpr = rpr.replace('<w:rPr>', `<w:rPr><w:rFonts w:ascii="${enFont}" w:hAnsi="${enFont}" w:eastAsia="${cnFont}"/>`);
+  }
+
+  // Fix size
+  const sz = String(Math.round(sizePt * 2));
+  if (rpr.includes('w:sz ') || rpr.includes('<w:sz/>')) {
+    rpr = rpr.replace(/<w:sz\s+w:val="[^"]*"\s*\/>/, `<w:sz w:val="${sz}"/>`);
+    rpr = rpr.replace(/<w:szCs\s+w:val="[^"]*"\s*\/>/, `<w:szCs w:val="${sz}"/>`);
+  } else {
+    rpr = rpr.replace('</w:rPr>', `<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`);
+  }
+
+  if (!runXml.includes('<w:rPr>')) {
+    return runXml.replace('<w:r>', '<w:r>' + rpr);
+  }
+  return runXml.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, rpr);
+}
+
+function fixParaSpacing(paraXml, lineSpacing, spaceBefore, spaceAfter) {
+  const lineVal = Math.round(lineSpacing * 240);
+  const spacingTag = `<w:spacing w:line="${lineVal}" w:lineRule="auto" w:before="${ptToTwip(spaceBefore)}" w:after="${ptToTwip(spaceAfter)}"/>`;
+  
+  if (paraXml.includes('w:spacing')) {
+    return paraXml.replace(/<w:spacing[^\/]*\/>|<w:spacing[^>]*>[\s\S]*?<\/w:spacing>/, spacingTag);
+  } else {
+    return paraXml.replace('</w:pPr>', spacingTag + '</w:pPr>');
+  }
+}
+
+function fixMargins(sectXml, rules) {
+  const top    = mmToTwip(rules.margins.top);
+  const bottom = mmToTwip(rules.margins.bottom);
+  const left   = mmToTwip(rules.margins.left);
+  const right  = mmToTwip(rules.margins.right);
+  const margTag = `<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="709" w:footer="709" w:gutter="0"/>`;
+  if (sectXml.includes('w:pgMar')) {
+    return sectXml.replace(/<w:pgMar[^\/]*\/>|<w:pgMar[^>]*>[\s\S]*?<\/w:pgMar>/, margTag);
+  }
+  return sectXml.replace('</w:sectPr>', margTag + '</w:sectPr>');
+}
+
+// ─── Main check + fix ─────────────────────────────────────────────────────
+async function runCheck() {
+  if (!docxFile) return;
+  const rules = getRules();
+
+  const btn = document.getElementById('btn-check');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 检查中…';
+  document.getElementById('empty').style.display = 'none';
+  document.getElementById('summary').style.display = 'none';
+  document.getElementById('issues-wrap').style.display = 'none';
+  document.getElementById('dl-wrap').style.display = 'none';
+
+  const prog = document.getElementById('prog-bar');
+  const fill = document.getElementById('prog-fill');
+  prog.style.display = 'block';
+  fill.style.width = '5%';
+
+  await new Promise(r => setTimeout(r, 30));
+
+  try {
+    const buf = await docxFile.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    fill.style.width = '15%';
+
+    const xmlRaw = await zip.file('word/document.xml').async('string');
+    fill.style.width = '25%';
+
+    const paraRe = /<w:p[ >][\s\S]*?<\/w:p>/g;
+    const parasRaw = [...xmlRaw.matchAll(paraRe)];
+    fill.style.width = '35%';
+
+    const issues = [];
+    let fixedXml = xmlRaw;
+    let paraCount = 0;
+    let skipCount = 0; // pages to skip at start
+
+    // Detect and skip cover/declaration pages (first few paragraphs with specific styles)
+    if (rules.skipCover) skipCount = 15;
+
+    // Check margins from sectPr
+    const sectMatch = xmlRaw.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+    if (sectMatch) {
+      const margIssues = checkMargins(sectMatch[0], rules);
+      issues.push(...margIssues);
+      if (rules.autofix && margIssues.some(i => i.fixable)) {
+        fixedXml = fixedXml.replace(sectMatch[0], fixMargins(sectMatch[0], rules));
+      }
+    }
+
+    // Check paragraphs
+    let inToc = false;
+    const paraReplacements = new Map();
+
+    for (let idx = 0; idx < parasRaw.length; idx++) {
+      const pXml = parasRaw[idx][0];
+      const text = getParaText(pXml);
+      const styleVal = getStyle(pXml);
+      const headingLevel = getHeadingLevel(styleVal);
+
+      // Detect TOC
+      if (text.includes('目录') && headingLevel >= 1) inToc = true;
+      if (inToc && headingLevel >= 1 && !text.includes('目录') && text.match(/^\d/)) inToc = false;
+      if (rules.skipToc && inToc) continue;
+      if (idx < skipCount) continue;
+
+      paraCount++;
+      const shortText = text.slice(0, 20) + (text.length > 20 ? '…' : '');
+      const label = `段落 ${idx+1}${text ? ('："' + shortText + '"') : ''}`;
+
+      let newPara = pXml;
+      let paraChanged = false;
+
+      if (headingLevel === 1) {
+        const r = rules.h1;
+        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
+        issues.push(...fi);
+        if (rules.autofix && fi.some(i=>i.fixable)) {
+          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
+            fixRunFont(rm, r.font, r.font, r.sizePt));
+          paraChanged = true;
+        }
+      } else if (headingLevel === 2) {
+        const r = rules.h2;
+        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
+        issues.push(...fi);
+        if (rules.autofix && fi.some(i=>i.fixable)) {
+          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
+            fixRunFont(rm, r.font, r.font, r.sizePt));
+          paraChanged = true;
+        }
+      } else if (headingLevel === 3) {
+        const r = rules.h3;
+        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
+        issues.push(...fi);
+        if (rules.autofix && fi.some(i=>i.fixable)) {
+          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
+            fixRunFont(rm, r.font, r.font, r.sizePt));
+          paraChanged = true;
+        }
+      } else if (text.length > 0) {
+        // Body paragraph
+        const r = rules.body;
+        const fi = checkParaFont(pXml, r.cnFont, r.enFont, r.sizePt, idx, label);
+        const si = checkSpacing(pXml, rules, idx, label, true);
+        issues.push(...fi, ...si);
+        if (rules.autofix) {
+          if (fi.some(i=>i.fixable)) {
+            newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
+              fixRunFont(rm, r.cnFont, r.enFont, r.sizePt));
+            paraChanged = true;
+          }
+          if (si.some(i=>i.fixable)) {
+            newPara = fixParaSpacing(newPara, rules.lineSpacing, rules.spaceBefore, rules.spaceAfter);
+            paraChanged = true;
+          }
+        }
+      }
+
+      if (paraChanged) paraReplacements.set(pXml, newPara);
+    }
+
+    fill.style.width = '75%';
+
+    // Apply paragraph fixes
+    for (const [old, nw] of paraReplacements) {
+      fixedXml = fixedXml.replace(old, nw);
+    }
+
+    fill.style.width = '85%';
+
+    // Pack fixed docx
+    const allFiles = {};
+    for (const [name, file] of Object.entries(zip.files)) {
+      if (!file.dir) allFiles[name] = await file.async('arraybuffer');
+    }
+    allFiles['word/document.xml'] = new TextEncoder().encode(fixedXml);
+
+    const newZip = new JSZip();
+    for (const [name, data] of Object.entries(allFiles)) newZip.file(name, data);
+    fixedBlob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+
+    fill.style.width = '100%';
+    allIssues = issues;
+
+    renderResults(issues, paraCount);
+
+  } catch(err) {
+    alert('处理出错：' + err.message);
+    console.error(err);
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '重新检查';
+  prog.style.display = 'none';
+}
+
+// ─── Render results ───────────────────────────────────────────────────────
+function renderResults(issues, paraCount) {
+  const errCount  = issues.filter(i=>i.level==='err').length;
+  const warnCount = issues.filter(i=>i.level==='warn').length;
+  const okCount   = Math.max(0, paraCount - new Set(issues.map(i=>i.para)).size);
+
+  // Summary
+  const sumEl = document.getElementById('summary');
+  sumEl.style.display = 'block';
+  sumEl.innerHTML = `
+    <div class="summary-grid">
+      <div class="stat-card stat-err">
+        <div class="stat-num">${errCount}</div>
+        <div class="stat-label">错误</div>
+      </div>
+      <div class="stat-card stat-warn">
+        <div class="stat-num">${warnCount}</div>
+        <div class="stat-label">警告</div>
+      </div>
+      <div class="stat-card stat-ok">
+        <div class="stat-num">${okCount}</div>
+        <div class="stat-label">段落正常</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num" style="color:var(--blue)">${paraCount}</div>
+        <div class="stat-label">段落总数</div>
+      </div>
+    </div>
+  `;
+
+  // Issues
+  currentFilter = 'all';
+  renderIssueList(issues);
+
+  // Download
+  if (document.getElementById('opt-autofix').checked && fixedBlob) {
+    const dlWrap = document.getElementById('dl-wrap');
+    dlWrap.style.display = 'block';
+    dlWrap.innerHTML = `
+      <div class="dl-card">
+        <div class="dl-info">
+          <strong>修复版文档已生成</strong>
+          可修复项已自动处理，建议下载后用 Word 对比确认效果。
+        </div>
+        <button class="btn btn-dl" onclick="downloadFixed()">⬇ 下载修复版</button>
+      </div>
+    `;
+    document.getElementById('btn-dl').style.display = 'inline-flex';
+  }
+}
+
+function renderIssueList(issues) {
+  const wrap = document.getElementById('issues-wrap');
+  wrap.style.display = 'block';
+
+  const filtered = currentFilter === 'all' ? issues
+    : issues.filter(i => i.level === currentFilter || i.type === currentFilter);
+
+  const types = [...new Set(issues.map(i=>i.type))];
+
+  wrap.innerHTML = `
+    <div class="issues-header">
+      <div class="issues-title">问题列表（${filtered.length} 项）</div>
+      <div class="filter-tabs">
+        <div class="ftab ${currentFilter==='all'?'active':''}" onclick="setFilter('all')">全部 ${issues.length}</div>
+        <div class="ftab ${currentFilter==='err'?'active':''}" onclick="setFilter('err')" style="color:${currentFilter==='err'?'':'var(--red)'}">错误 ${issues.filter(i=>i.level==='err').length}</div>
+        <div class="ftab ${currentFilter==='warn'?'active':''}" onclick="setFilter('warn')" style="color:${currentFilter==='warn'?'':'var(--orange)'}">警告 ${issues.filter(i=>i.level==='warn').length}</div>
+        ${types.map(t=>`<div class="ftab ${currentFilter===t?'active':''}" onclick="setFilter('${t}')">${t}</div>`).join('')}
+      </div>
+    </div>
+    <div id="issue-list">
+      ${filtered.length === 0
+        ? `<div class="no-issues"><div class="no-issues-icon">✅</div><div>没有发现格式问题</div></div>`
+        : filtered.map(i => `
+          <div class="issue-card ${i.level}">
+            <div class="issue-top">
+              <span class="issue-badge ${i.level==='err'?'badge-err':'badge-warn'}">${i.level==='err'?'错误':'警告'}</span>
+              <span class="badge-type">${i.type}</span>
+              <div class="issue-text">${i.text}</div>
+            </div>
+            <div class="issue-detail">
+              <span>📍 ${i.label}</span>
+              ${i.actual ? `<span>实际：<b class="detail-actual">${i.actual}</b></span>` : ''}
+              ${i.expected ? `<span>应为：<b class="detail-expected">${i.expected}</b></span>` : ''}
+              ${i.fixable ? `<span>🔧 可自动修复</span>` : ''}
+            </div>
+          </div>
+        `).join('')}
+    </div>
+  `;
+}
+
+function setFilter(f) {
+  currentFilter = f;
+  renderIssueList(allIssues);
+}
+
+function downloadFixed() {
+  if (!fixedBlob) return;
+  const base = docxFile.name.replace(/\.docx$/i, '');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(fixedBlob);
+  a.download = base + '_格式修复.docx';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+}
+
+document.getElementById('btn-check').addEventListener('click', runCheck);
+document.getElementById('btn-dl').addEventListener('click', downloadFixed);
+</script>
+</body>
+</html>
