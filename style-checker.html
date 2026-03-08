@@ -3,246 +3,149 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>论文格式检查器</title>
+<title>论文格式检查器 v2</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-
 :root{
-  --bg:#f5f5f0;
-  --panel:#ffffff;
-  --border:#e0ddd8;
-  --ink:#1c1c1c;
-  --muted:#888880;
-  --red:#c0392b;
-  --red-bg:#fdf0ef;
-  --orange:#d35400;
-  --orange-bg:#fef5ee;
-  --green:#27ae60;
-  --green-bg:#edfaf3;
-  --blue:#2980b9;
-  --mono:'JetBrains Mono',monospace;
-  --sans:'Noto Sans SC',sans-serif;
+  --bg:#f3f2ee;--panel:#fff;--border:#e0ddd6;--ink:#1a1a1a;
+  --muted:#8a8780;--red:#c0392b;--red-bg:#fdf0ef;
+  --orange:#d35400;--orange-bg:#fef5ee;--green:#27ae60;--green-bg:#edfaf3;
+  --blue:#2471a3;--accent:#2c3e50;
+  --mono:'JetBrains Mono',monospace;--sans:'Noto Sans SC',sans-serif;
 }
-
-body{
-  background:var(--bg);
-  font-family:var(--sans);
-  color:var(--ink);
-  min-height:100vh;
-  display:grid;
-  grid-template-rows:52px 1fr;
-  grid-template-columns:320px 1fr;
-  font-size:14px;
-}
+body{background:var(--bg);font-family:var(--sans);color:var(--ink);font-size:13px;
+  min-height:100vh;display:grid;grid-template-rows:48px 1fr;grid-template-columns:340px 1fr}
 
 /* ── Header ── */
-header{
-  grid-column:1/-1;
-  background:var(--ink);
-  color:#fff;
-  display:flex;
-  align-items:center;
-  padding:0 24px;
-  gap:16px;
-}
-.logo{font-family:var(--mono);font-size:13px;letter-spacing:.04em}
-.sep{opacity:.2;font-size:18px}
-.tagline{opacity:.45;font-size:12px}
-.hdr-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
-
-.btn{
-  display:inline-flex;align-items:center;gap:6px;
-  padding:7px 16px;border:none;border-radius:3px;
-  font-family:var(--sans);font-size:12px;font-weight:500;
-  cursor:pointer;transition:all .15s;white-space:nowrap;
-}
-.btn-ghost{background:rgba(255,255,255,.1);color:#fff}
-.btn-ghost:hover{background:rgba(255,255,255,.2)}
-.btn-primary{background:#fff;color:var(--ink)}
-.btn-primary:hover{background:#eee}
-.btn-action{background:#2d5a8e;color:#fff}
-.btn-action:hover{background:#234a76}
-.btn-dl{background:#2d7d46;color:#fff}
-.btn-dl:hover{background:#246038}
+header{grid-column:1/-1;background:var(--accent);color:#fff;
+  display:flex;align-items:center;padding:0 20px;gap:14px}
+.logo{font-family:var(--mono);font-size:13px;letter-spacing:.04em;font-weight:500}
+.sep{opacity:.2}.tagline{opacity:.4;font-size:11px}
+.hdr-r{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border:none;
+  border-radius:3px;font-family:var(--sans);font-size:12px;font-weight:500;
+  cursor:pointer;transition:all .15s;white-space:nowrap}
 .btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-run{background:#e67e22;color:#fff;padding:7px 20px;font-size:13px}
+.btn-run:hover:not(:disabled){background:#ca6f1e}
+.btn-dl{background:#27ae60;color:#fff}
+.btn-dl:hover:not(:disabled){background:#1e8449}
 
-/* ── Left sidebar ── */
-aside{
-  background:var(--panel);
-  border-right:1px solid var(--border);
-  overflow-y:auto;
-  display:flex;
-  flex-direction:column;
-}
-
-.section{padding:18px;border-bottom:1px solid var(--border)}
-.sec-title{
-  font-family:var(--mono);font-size:10px;
-  letter-spacing:.14em;text-transform:uppercase;
-  color:var(--muted);margin-bottom:14px;
-}
+/* ── Sidebar ── */
+aside{background:var(--panel);border-right:1px solid var(--border);
+  overflow-y:auto;display:flex;flex-direction:column}
+.sec{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sec-hd{font-family:var(--mono);font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:10px;
+  display:flex;align-items:center;justify-content:space-between}
+.sec-hd-action{font-size:11px;color:var(--blue);cursor:pointer;font-family:var(--sans);
+  letter-spacing:0;text-transform:none;background:none;border:none;padding:0}
+.sec-hd-action:hover{text-decoration:underline}
 
 /* Drop zone */
-#dropzone{
-  border:2px dashed var(--border);border-radius:4px;
-  padding:28px 16px;text-align:center;cursor:pointer;
-  transition:all .2s;background:var(--bg);
-}
-#dropzone:hover,#dropzone.over{border-color:#888;background:#eeede8}
+#dropzone{border:2px dashed var(--border);border-radius:4px;padding:20px 14px;
+  text-align:center;cursor:pointer;transition:all .2s;background:var(--bg)}
+#dropzone:hover,#dropzone.over{border-color:#999;background:#eeedea}
 #dropzone.loaded{border-color:var(--green);background:var(--green-bg)}
-.drop-icon{font-size:28px;display:block;margin-bottom:8px;opacity:.5}
-.drop-text{font-size:13px;color:var(--muted);line-height:1.5}
+.drop-icon{font-size:22px;display:block;margin-bottom:5px;opacity:.4}
+.drop-text{font-size:12px;color:var(--muted);line-height:1.5}
 .drop-text strong{color:var(--ink)}
 #file-input{display:none}
-#file-label{font-family:var(--mono);font-size:11px;color:var(--green);margin-top:6px;display:block}
+#file-name{font-family:var(--mono);font-size:11px;color:var(--green);margin-top:4px;display:block}
+.prog-bar{height:2px;background:var(--border);border-radius:2px;margin-top:8px;overflow:hidden;display:none}
+.prog-fill{height:100%;background:var(--accent);width:0%;transition:width .3s}
 
-/* Rules editor */
-.rule-group{margin-bottom:14px}
-.rule-group-title{
-  font-size:11px;font-weight:500;color:var(--muted);
-  text-transform:uppercase;letter-spacing:.08em;
-  margin-bottom:8px;
-}
+/* Presets */
+.preset-wrap{display:flex;flex-wrap:wrap;gap:4px}
+.ptab{padding:4px 10px;border-radius:3px;font-size:11px;border:1px solid var(--border);
+  background:var(--bg);cursor:pointer;transition:all .15s;color:var(--muted);user-select:none}
+.ptab:hover{border-color:#aaa;color:var(--ink)}
+.ptab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-.rule-row{
-  display:grid;grid-template-columns:1fr auto auto;
-  align-items:center;gap:6px;margin-bottom:6px;
-}
-.rule-label{font-size:12px;color:var(--ink)}
-.rule-input{
-  width:72px;padding:4px 6px;
-  border:1px solid var(--border);border-radius:3px;
+/* Skip list */
+#skip-list{max-height:170px;overflow-y:auto;margin-top:4px}
+.skip-item{display:flex;align-items:center;gap:8px;padding:5px 4px;
+  border-radius:3px;cursor:pointer;user-select:none;transition:background .1s}
+.skip-item:hover{background:var(--bg)}
+.skip-item input{accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+.skip-lbl{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.skip-h{font-family:var(--mono);font-size:10px;color:var(--muted);
+  padding:1px 4px;border:1px solid var(--border);border-radius:2px;flex-shrink:0}
+.skip-ph{color:var(--muted);font-size:12px;padding:8px 4px;text-align:center;font-style:italic}
+
+/* Rule table */
+.rtable{width:100%;border-collapse:collapse}
+.rtable tr{border-bottom:1px solid var(--border)}
+.rtable tr:last-child{border-bottom:none}
+.rtable td{padding:5px 3px;vertical-align:middle}
+.rtable td:first-child{font-size:12px;width:88px;color:var(--ink)}
+.rtable td:last-child{font-size:11px;color:var(--muted);width:26px;text-align:right}
+.ri{width:100%;padding:4px 6px;border:1px solid var(--border);border-radius:3px;
   font-family:var(--mono);font-size:11px;color:var(--ink);
-  background:var(--bg);outline:none;text-align:center;
-}
-.rule-input:focus{border-color:#888}
-.rule-unit{font-size:11px;color:var(--muted);width:24px}
+  background:var(--bg);outline:none;text-align:center}
+.ri:focus{border-color:#888}
+select.ri{text-align:left;cursor:pointer}
+.rsub{font-size:10px;font-weight:600;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.07em;padding:8px 3px 3px;border-bottom:1px solid var(--border);margin-bottom:1px}
+.tog{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;cursor:pointer}
+.tog input{accent-color:var(--accent);cursor:pointer}
 
-.rule-toggle{
-  display:flex;align-items:center;gap:8px;margin-bottom:8px;
-  font-size:12px;cursor:pointer;user-select:none;
-}
-.rule-toggle input{accent-color:var(--ink)}
+/* ── Main ── */
+main{overflow-y:auto;padding:24px;display:flex;flex-direction:column;gap:16px}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:360px;text-align:center;color:var(--muted);gap:10px}
+.empty-icon{font-size:44px;opacity:.22}
+.empty-text{font-size:13px;line-height:1.7;max-width:300px}
 
-/* ── Main content ── */
-main{
-  overflow-y:auto;
-  padding:28px;
-  display:flex;
-  flex-direction:column;
-  gap:20px;
-}
+/* Summary */
+.sum-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:14px;text-align:center}
+.stat-n{font-size:26px;font-weight:700;line-height:1;margin-bottom:3px}
+.stat-l{font-size:10px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em}
+.ce{color:var(--red)}.cw{color:var(--orange)}.cg{color:var(--green)}.cb{color:var(--blue)}
 
-.empty-state{
-  display:flex;flex-direction:column;
-  align-items:center;justify-content:center;
-  min-height:400px;text-align:center;
-  color:var(--muted);gap:12px;
-}
-.empty-icon{font-size:48px;opacity:.3}
-.empty-text{font-size:14px;line-height:1.7;max-width:320px}
+/* Issues */
+.iss-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px}
+.iss-title{font-size:14px;font-weight:500}
+.ftabs{display:flex;gap:3px;flex-wrap:wrap}
+.ftab{padding:3px 9px;border-radius:3px;font-size:11px;border:1px solid var(--border);
+  background:var(--panel);cursor:pointer;transition:all .15s;color:var(--muted)}
+.ftab:hover{border-color:#aaa;color:var(--ink)}
+.ftab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
 
-/* Summary bar */
-#summary{display:none}
-.summary-grid{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:12px;
-}
-.stat-card{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:4px;
-  padding:16px;
-  text-align:center;
-}
-.stat-num{font-size:28px;font-weight:700;line-height:1;margin-bottom:4px}
-.stat-label{font-size:11px;color:var(--muted);font-family:var(--mono);letter-spacing:.06em}
-.stat-err .stat-num{color:var(--red)}
-.stat-warn .stat-num{color:var(--orange)}
-.stat-ok .stat-num{color:var(--green)}
+.icard{background:var(--panel);border:1px solid var(--border);
+  border-left:3px solid transparent;border-radius:4px;
+  padding:11px 14px;margin-bottom:7px;transition:box-shadow .15s}
+.icard:hover{box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.icard.err{border-left-color:var(--red);background:var(--red-bg)}
+.icard.warn{border-left-color:var(--orange);background:var(--orange-bg)}
+.icard-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px}
+.ibadge{font-family:var(--mono);font-size:10px;font-weight:600;padding:2px 5px;
+  border-radius:2px;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.ibe{background:var(--red);color:#fff}
+.ibw{background:var(--orange);color:#fff}
+.itype{font-size:10px;color:var(--muted);font-family:var(--mono);padding:2px 5px;
+  border:1px solid var(--border);border-radius:2px;white-space:nowrap;flex-shrink:0;margin-top:1px}
+.itext{font-size:12px;line-height:1.5;flex:1}
+.idet{font-family:var(--mono);font-size:11px;color:var(--muted);
+  margin-top:3px;display:flex;gap:10px;flex-wrap:wrap}
+.da{color:var(--red);font-weight:600}.de{color:var(--green);font-weight:600}
 
-/* Issues list */
-#issues-wrap{display:none}
-.issues-header{
-  display:flex;align-items:center;justify-content:space-between;
-  margin-bottom:12px;
-}
-.issues-title{font-size:15px;font-weight:500}
-.filter-tabs{display:flex;gap:4px}
-.ftab{
-  padding:4px 10px;border-radius:3px;font-size:12px;
-  border:1px solid var(--border);background:var(--panel);
-  cursor:pointer;transition:all .15s;color:var(--muted);
-}
-.ftab.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.no-iss{text-align:center;padding:40px;color:var(--muted);
+  background:var(--green-bg);border-radius:4px;border:1px solid #b8e8ca}
 
-.issue-card{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-left:3px solid transparent;
-  border-radius:4px;
-  padding:14px 16px;
-  margin-bottom:8px;
-  transition:box-shadow .15s;
-}
-.issue-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.08)}
-.issue-card.err{border-left-color:var(--red);background:var(--red-bg)}
-.issue-card.warn{border-left-color:var(--orange);background:var(--orange-bg)}
-
-.issue-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:6px}
-.issue-badge{
-  font-family:var(--mono);font-size:10px;font-weight:500;
-  padding:2px 6px;border-radius:2px;white-space:nowrap;flex-shrink:0;
-  margin-top:1px;
-}
-.badge-err{background:var(--red);color:#fff}
-.badge-warn{background:var(--orange);color:#fff}
-.badge-type{
-  font-size:10px;color:var(--muted);font-family:var(--mono);
-  padding:2px 6px;border:1px solid var(--border);border-radius:2px;
-  white-space:nowrap;flex-shrink:0;margin-top:1px;
-}
-.issue-text{font-size:13px;line-height:1.5;flex:1}
-.issue-detail{
-  font-family:var(--mono);font-size:11px;color:var(--muted);
-  margin-top:4px;display:flex;gap:12px;flex-wrap:wrap;
-}
-.issue-detail span{display:flex;align-items:center;gap:4px}
-.detail-actual{color:var(--red)}
-.detail-expected{color:var(--green)}
-
-/* No issues */
-.no-issues{
-  text-align:center;padding:48px;color:var(--muted);
-  background:var(--green-bg);border-radius:4px;
-  border:1px solid #b8e8ca;
-}
-.no-issues-icon{font-size:36px;margin-bottom:8px}
-
-/* Download section */
-#dl-wrap{display:none}
-.dl-card{
-  background:var(--panel);border:1px solid var(--border);
-  border-radius:4px;padding:20px;
-  display:flex;align-items:center;justify-content:space-between;gap:16px;
-}
-.dl-info{font-size:13px;color:var(--muted);line-height:1.6}
-.dl-info strong{color:var(--ink);display:block;margin-bottom:2px}
-
-/* Progress */
-.progress-bar{height:2px;background:var(--border);border-radius:2px;margin-top:10px;overflow:hidden;display:none}
-.progress-fill{height:100%;background:var(--ink);width:0%;transition:width .3s;border-radius:2px}
+/* DL card */
+.dl-card{background:var(--panel);border:1px solid var(--border);border-radius:4px;
+  padding:16px;display:flex;align-items:center;justify-content:space-between;gap:14px}
+.dl-info{font-size:12px;color:var(--muted);line-height:1.6}
+.dl-info strong{color:var(--ink);display:block;margin-bottom:2px;font-size:13px}
 
 @keyframes spin{to{transform:rotate(360deg)}}
-.spinner{
-  display:inline-block;width:12px;height:12px;
+.spin{display:inline-block;width:11px;height:11px;
   border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
-  border-radius:50%;animation:spin .7s linear infinite;
-}
+  border-radius:50%;animation:spin .7s linear infinite}
 </style>
 </head>
 <body>
@@ -250,705 +153,650 @@ main{
 <header>
   <span class="logo">论文格式检查器</span>
   <span class="sep">|</span>
-  <span class="tagline">上传 .docx → 检查格式 → 下载修复版</span>
-  <div class="hdr-actions">
-    <button class="btn btn-action" id="btn-check" disabled>开始检查</button>
-    <button class="btn btn-dl" id="btn-dl" style="display:none">⬇ 下载修复版</button>
+  <span class="tagline">上传 docx → 配置规范 → 检查 → 下载修复版</span>
+  <div class="hdr-r">
+    <button class="btn btn-run" id="btn-run" disabled>开始检查</button>
+    <button class="btn btn-dl" id="btn-dl" style="display:none" onclick="dlFixed()">⬇ 下载修复版</button>
   </div>
 </header>
 
 <aside>
-  <!-- Upload -->
-  <div class="section">
-    <div class="sec-title">文件</div>
+
+  <!-- 文件 -->
+  <div class="sec">
+    <div class="sec-hd">文件</div>
     <div id="dropzone" onclick="document.getElementById('file-input').click()">
       <span class="drop-icon">📄</span>
       <div class="drop-text"><strong>点击选择</strong>或拖拽 .docx</div>
-      <span id="file-label"></span>
+      <span id="file-name"></span>
     </div>
     <input type="file" id="file-input" accept=".docx">
-    <div class="progress-bar" id="prog-bar"><div class="progress-fill" id="prog-fill"></div></div>
+    <div class="prog-bar" id="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
   </div>
 
-  <!-- Rules: Font -->
-  <div class="section">
-    <div class="sec-title">字体规范</div>
-    <div class="rule-group">
-      <div class="rule-group-title">正文</div>
-      <div class="rule-row">
-        <span class="rule-label">中文字体</span>
-        <input class="rule-input" id="r-body-cn-font" value="宋体" style="width:80px">
-        <span class="rule-unit"></span>
-      </div>
-      <div class="rule-row">
-        <span class="rule-label">英文字体</span>
-        <input class="rule-input" id="r-body-en-font" value="Times New Roman" style="width:80px">
-        <span class="rule-unit"></span>
-      </div>
-      <div class="rule-row">
-        <span class="rule-label">字号</span>
-        <input class="rule-input" id="r-body-size" value="12" type="number">
-        <span class="rule-unit">pt</span>
-      </div>
+  <!-- 预设 -->
+  <div class="sec">
+    <div class="sec-hd">预设模板
+      <button class="sec-hd-action" onclick="savePreset()">＋ 保存当前</button>
     </div>
-    <div class="rule-group">
-      <div class="rule-group-title">一级标题</div>
-      <div class="rule-row">
-        <span class="rule-label">字体</span>
-        <input class="rule-input" id="r-h1-font" value="黑体" style="width:80px">
-        <span class="rule-unit"></span>
-      </div>
-      <div class="rule-row">
-        <span class="rule-label">字号</span>
-        <input class="rule-input" id="r-h1-size" value="16" type="number">
-        <span class="rule-unit">pt</span>
-      </div>
-    </div>
-    <div class="rule-group">
-      <div class="rule-group-title">二级标题</div>
-      <div class="rule-row">
-        <span class="rule-label">字体</span>
-        <input class="rule-input" id="r-h2-font" value="黑体" style="width:80px">
-        <span class="rule-unit"></span>
-      </div>
-      <div class="rule-row">
-        <span class="rule-label">字号</span>
-        <input class="rule-input" id="r-h2-size" value="14" type="number">
-        <span class="rule-unit">pt</span>
-      </div>
-    </div>
-    <div class="rule-group">
-      <div class="rule-group-title">三级标题</div>
-      <div class="rule-row">
-        <span class="rule-label">字体</span>
-        <input class="rule-input" id="r-h3-font" value="宋体" style="width:80px">
-        <span class="rule-unit"></span>
-      </div>
-      <div class="rule-row">
-        <span class="rule-label">字号</span>
-        <input class="rule-input" id="r-h3-size" value="12" type="number">
-        <span class="rule-unit">pt</span>
-      </div>
-    </div>
+    <div class="preset-wrap" id="preset-wrap"></div>
   </div>
 
-  <!-- Rules: Spacing -->
-  <div class="section">
-    <div class="sec-title">行距 / 段间距</div>
-    <div class="rule-row">
-      <span class="rule-label">正文行距</span>
-      <input class="rule-input" id="r-line-spacing" value="1.5" type="number" step="0.25">
-      <span class="rule-unit">倍</span>
+  <!-- 跳过章节 -->
+  <div class="sec">
+    <div class="sec-hd">跳过章节
+      <span style="display:flex;gap:8px">
+        <button class="sec-hd-action" onclick="toggleAll(true)">全选</button>
+        <button class="sec-hd-action" onclick="toggleAll(false)">清空</button>
+      </span>
     </div>
-    <div class="rule-row">
-      <span class="rule-label">段前间距</span>
-      <input class="rule-input" id="r-space-before" value="0" type="number">
-      <span class="rule-unit">pt</span>
-    </div>
-    <div class="rule-row">
-      <span class="rule-label">段后间距</span>
-      <input class="rule-input" id="r-space-after" value="0" type="number">
-      <span class="rule-unit">pt</span>
-    </div>
-    <div class="rule-row" style="margin-top:8px">
-      <span class="rule-label">行距容差</span>
-      <input class="rule-input" id="r-spacing-tol" value="0.1" type="number" step="0.05">
-      <span class="rule-unit">倍</span>
-    </div>
+    <div id="skip-list"><div class="skip-ph">上传文件后显示章节列表</div></div>
   </div>
 
-  <!-- Rules: Margin -->
-  <div class="section">
-    <div class="sec-title">页边距</div>
-    <div class="rule-row">
-      <span class="rule-label">上</span>
-      <input class="rule-input" id="r-margin-top" value="25.4" type="number" step="0.1">
-      <span class="rule-unit">mm</span>
-    </div>
-    <div class="rule-row">
-      <span class="rule-label">下</span>
-      <input class="rule-input" id="r-margin-bottom" value="25.4" type="number" step="0.1">
-      <span class="rule-unit">mm</span>
-    </div>
-    <div class="rule-row">
-      <span class="rule-label">左</span>
-      <input class="rule-input" id="r-margin-left" value="31.8" type="number" step="0.1">
-      <span class="rule-unit">mm</span>
-    </div>
-    <div class="rule-row">
-      <span class="rule-label">右</span>
-      <input class="rule-input" id="r-margin-right" value="25.4" type="number" step="0.1">
-      <span class="rule-unit">mm</span>
-    </div>
-    <div class="rule-row" style="margin-top:8px">
-      <span class="rule-label">容差</span>
-      <input class="rule-input" id="r-margin-tol" value="1" type="number" step="0.5">
-      <span class="rule-unit">mm</span>
-    </div>
+  <!-- 字体字号 -->
+  <div class="sec">
+    <div class="sec-hd">字体 / 字号</div>
+    <table class="rtable">
+      <tr><td colspan="3"><div class="rsub">正文</div></td></tr>
+      <tr><td>中文字体</td><td><input class="ri" id="r-body-cn" value="宋体"></td><td></td></tr>
+      <tr><td>英文字体</td><td><input class="ri" id="r-body-en" value="Times New Roman"></td><td></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-body-sz" type="number" value="12" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-body-align">
+        <option value="both">两端</option><option value="left">左对齐</option><option value="center">居中</option>
+      </select></td><td></td></tr>
+      <tr><td colspan="3"><div class="rsub">一级标题</div></td></tr>
+      <tr><td>字体</td><td><input class="ri" id="r-h1-font" value="黑体"></td><td></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-h1-sz" type="number" value="16" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-h1-align">
+        <option value="center">居中</option><option value="left">左对齐</option><option value="both">两端</option>
+      </select></td><td></td></tr>
+      <tr><td colspan="3"><div class="rsub">二级标题</div></td></tr>
+      <tr><td>字体</td><td><input class="ri" id="r-h2-font" value="黑体"></td><td></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-h2-sz" type="number" value="14" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-h2-align">
+        <option value="left">左对齐</option><option value="center">居中</option><option value="both">两端</option>
+      </select></td><td></td></tr>
+      <tr><td colspan="3"><div class="rsub">三级标题</div></td></tr>
+      <tr><td>字体</td><td><input class="ri" id="r-h3-font" value="宋体"></td><td></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-h3-sz" type="number" value="12" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-h3-align">
+        <option value="left">左对齐</option><option value="center">居中</option><option value="both">两端</option>
+      </select></td><td></td></tr>
+      <tr><td colspan="3"><div class="rsub">图 / 表标题</div></td></tr>
+      <tr><td>字体</td><td><input class="ri" id="r-cap-font" value="宋体"></td><td></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-cap-sz" type="number" value="10.5" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-cap-align">
+        <option value="center">居中</option><option value="left">左对齐</option><option value="both">两端</option>
+      </select></td><td></td></tr>
+      <tr><td colspan="3"><div class="rsub">页眉</div></td></tr>
+      <tr><td>字号</td><td><input class="ri" id="r-hdr-sz" type="number" value="10.5" step=".5"></td><td>pt</td></tr>
+      <tr><td>对齐</td><td><select class="ri" id="r-hdr-align">
+        <option value="center">居中</option><option value="right">右对齐</option><option value="left">左对齐</option>
+      </select></td><td></td></tr>
+    </table>
   </div>
 
-  <!-- Options -->
-  <div class="section">
-    <div class="sec-title">选项</div>
-    <label class="rule-toggle"><input type="checkbox" id="opt-autofix" checked> 自动修复可修复项</label>
-    <label class="rule-toggle"><input type="checkbox" id="opt-skip-toc" checked> 跳过目录页</label>
-    <label class="rule-toggle"><input type="checkbox" id="opt-skip-cover" checked> 跳过封面/声明页</label>
+  <!-- 段落格式 -->
+  <div class="sec">
+    <div class="sec-hd">段落格式</div>
+    <table class="rtable">
+      <tr><td colspan="3"><div class="rsub">行距</div></td></tr>
+      <tr><td>正文行距</td><td><input class="ri" id="r-line" type="number" value="1.5" step=".25"></td><td>倍</td></tr>
+      <tr><td>容差</td><td><input class="ri" id="r-line-tol" type="number" value="0.1" step=".05"></td><td>倍</td></tr>
+      <tr><td colspan="3"><div class="rsub">段间距</div></td></tr>
+      <tr><td>段前</td><td><input class="ri" id="r-before" type="number" value="0"></td><td>pt</td></tr>
+      <tr><td>段后</td><td><input class="ri" id="r-after" type="number" value="0"></td><td>pt</td></tr>
+      <tr><td colspan="3"><div class="rsub">首行缩进</div></td></tr>
+      <tr><td>缩进量</td><td><input class="ri" id="r-indent" type="number" value="2" step=".5"></td><td>字符</td></tr>
+      <tr><td>容差</td><td><input class="ri" id="r-indent-tol" type="number" value="0.3" step=".1"></td><td>字符</td></tr>
+    </table>
   </div>
+
+  <!-- 页面设置 -->
+  <div class="sec">
+    <div class="sec-hd">页边距</div>
+    <table class="rtable">
+      <tr><td>上</td><td><input class="ri" id="r-mt" type="number" value="25.4" step=".1"></td><td>mm</td></tr>
+      <tr><td>下</td><td><input class="ri" id="r-mb" type="number" value="25.4" step=".1"></td><td>mm</td></tr>
+      <tr><td>左</td><td><input class="ri" id="r-ml" type="number" value="31.8" step=".1"></td><td>mm</td></tr>
+      <tr><td>右</td><td><input class="ri" id="r-mr" type="number" value="25.4" step=".1"></td><td>mm</td></tr>
+      <tr><td>容差</td><td><input class="ri" id="r-m-tol" type="number" value="1" step=".5"></td><td>mm</td></tr>
+    </table>
+  </div>
+
+  <!-- 选项 -->
+  <div class="sec">
+    <div class="sec-hd">检查项目</div>
+    <label class="tog"><input type="checkbox" id="opt-fix" checked> 自动修复可修复项</label>
+    <label class="tog"><input type="checkbox" id="opt-font" checked> 字体 / 字号</label>
+    <label class="tog"><input type="checkbox" id="opt-align" checked> 对齐方式</label>
+    <label class="tog"><input type="checkbox" id="opt-spacing" checked> 行距 / 段间距</label>
+    <label class="tog"><input type="checkbox" id="opt-indent" checked> 首行缩进</label>
+    <label class="tog"><input type="checkbox" id="opt-margin" checked> 页边距</label>
+    <label class="tog"><input type="checkbox" id="opt-caption"> 图 / 表标题格式</label>
+  </div>
+
 </aside>
 
-<main id="main">
-  <div class="empty-state" id="empty">
+<main>
+  <div class="empty" id="empty">
     <div class="empty-icon">🔍</div>
-    <div class="empty-text">上传 .docx 文件，配置格式规范，点击"开始检查"</div>
+    <div class="empty-text">上传 .docx，在左侧选择预设规范并勾选要跳过的章节，然后点击"开始检查"</div>
   </div>
-
-  <div id="summary"></div>
-  <div id="issues-wrap"></div>
-  <div id="dl-wrap"></div>
+  <div id="sum-wrap" style="display:none"></div>
+  <div id="iss-wrap" style="display:none"></div>
+  <div id="dl-wrap" style="display:none"></div>
 </main>
 
 <script>
-// ─── State ────────────────────────────────────────────────────────────────
-let docxFile = null;
-let fixedBlob = null;
-let allIssues = [];
-let currentFilter = 'all';
+// ── Constants ────────────────────────────────────────────────────────────
+const TWIP_PER_MM = 56.6929, TWIP_PER_PT = 20;
+const toMm  = t => t / TWIP_PER_MM;
+const toPt  = t => t / TWIP_PER_PT;
+const mmTwip= m => Math.round(m * TWIP_PER_MM);
+const ptTwip= p => Math.round(p * TWIP_PER_PT);
 
-// ─── Drag & drop ──────────────────────────────────────────────────────────
+// ── Preset definitions ───────────────────────────────────────────────────
+const BUILTIN = {
+  '国标通用':{
+    'r-body-cn':'宋体','r-body-en':'Times New Roman','r-body-sz':12,'r-body-align':'both',
+    'r-h1-font':'黑体','r-h1-sz':16,'r-h1-align':'center',
+    'r-h2-font':'黑体','r-h2-sz':14,'r-h2-align':'left',
+    'r-h3-font':'宋体','r-h3-sz':12,'r-h3-align':'left',
+    'r-cap-font':'宋体','r-cap-sz':10.5,'r-cap-align':'center',
+    'r-hdr-sz':10.5,'r-hdr-align':'center',
+    'r-line':1.5,'r-line-tol':0.1,'r-before':0,'r-after':0,
+    'r-indent':2,'r-indent-tol':0.3,
+    'r-mt':25.4,'r-mb':25.4,'r-ml':31.8,'r-mr':25.4,'r-m-tol':1,
+  },
+  '成都理工':{
+    'r-body-cn':'宋体','r-body-en':'Times New Roman','r-body-sz':12,'r-body-align':'both',
+    'r-h1-font':'黑体','r-h1-sz':16,'r-h1-align':'center',
+    'r-h2-font':'黑体','r-h2-sz':14,'r-h2-align':'left',
+    'r-h3-font':'黑体','r-h3-sz':12,'r-h3-align':'left',
+    'r-cap-font':'宋体','r-cap-sz':10.5,'r-cap-align':'center',
+    'r-hdr-sz':10.5,'r-hdr-align':'center',
+    'r-line':1.5,'r-line-tol':0.1,'r-before':0,'r-after':0,
+    'r-indent':2,'r-indent-tol':0.3,
+    'r-mt':30,'r-mb':25,'r-ml':30,'r-mr':25,'r-m-tol':1,
+  },
+  '四号宋体':{
+    'r-body-cn':'宋体','r-body-en':'Times New Roman','r-body-sz':14,'r-body-align':'both',
+    'r-h1-font':'黑体','r-h1-sz':18,'r-h1-align':'center',
+    'r-h2-font':'黑体','r-h2-sz':16,'r-h2-align':'left',
+    'r-h3-font':'黑体','r-h3-sz':14,'r-h3-align':'left',
+    'r-cap-font':'宋体','r-cap-sz':12,'r-cap-align':'center',
+    'r-hdr-sz':12,'r-hdr-align':'center',
+    'r-line':1.5,'r-line-tol':0.1,'r-before':0,'r-after':0,
+    'r-indent':2,'r-indent-tol':0.3,
+    'r-mt':25.4,'r-mb':25.4,'r-ml':31.8,'r-mr':25.4,'r-m-tol':1,
+  },
+};
+
+let userPresets = {};
+try { userPresets = JSON.parse(localStorage.getItem('docfmt-presets')||'{}'); } catch(e){}
+
+function allPresets(){ return {...BUILTIN,...userPresets}; }
+
+function renderPresets(active){
+  const all = allPresets();
+  document.getElementById('preset-wrap').innerHTML =
+    Object.keys(all).map(n =>
+      `<div class="ptab ${n===active?'on':''}" onclick="applyPreset('${n.replace(/'/g,"\\'")}','${n.replace(/'/g,"\\'")}',true)">${n}${userPresets[n]?` <span onclick="event.stopPropagation();deletePreset('${n.replace(/'/g,"\\'")}')">×</span>`:''}</div>`
+    ).join('');
+}
+
+function applyPreset(name){
+  const p = allPresets()[name]; if(!p) return;
+  for(const [id,val] of Object.entries(p)){
+    const el = document.getElementById(id); if(el) el.value = val;
+  }
+  renderPresets(name);
+}
+
+function savePreset(){
+  const name = prompt('为当前配置起个名称：'); if(!name) return;
+  const ids = ['r-body-cn','r-body-en','r-body-sz','r-body-align',
+    'r-h1-font','r-h1-sz','r-h1-align','r-h2-font','r-h2-sz','r-h2-align',
+    'r-h3-font','r-h3-sz','r-h3-align','r-cap-font','r-cap-sz','r-cap-align',
+    'r-hdr-sz','r-hdr-align','r-line','r-line-tol','r-before','r-after',
+    'r-indent','r-indent-tol','r-mt','r-mb','r-ml','r-mr','r-m-tol'];
+  const p={};
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)p[id]=el.value;});
+  userPresets[name]=p;
+  try{localStorage.setItem('docfmt-presets',JSON.stringify(userPresets));}catch(e){}
+  renderPresets(name);
+}
+
+function deletePreset(name){
+  if(!confirm(`删除预设"${name}"？`)) return;
+  delete userPresets[name];
+  try{localStorage.setItem('docfmt-presets',JSON.stringify(userPresets));}catch(e){}
+  renderPresets();
+}
+
+renderPresets('国标通用');
+applyPreset('国标通用');
+
+// ── State ────────────────────────────────────────────────────────────────
+let docxFile=null, fixedBlob=null, allIssues=[], currentFilter='all';
+let skipSet = new Set();
+
+// ── File upload ──────────────────────────────────────────────────────────
 const dz = document.getElementById('dropzone');
-dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
-dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-dz.addEventListener('drop', e => {
-  e.preventDefault(); dz.classList.remove('over');
-  const f = e.dataTransfer.files[0];
-  if (f?.name.endsWith('.docx')) loadFile(f);
+dz.addEventListener('dragover', e=>{e.preventDefault();dz.classList.add('over')});
+dz.addEventListener('dragleave', ()=>dz.classList.remove('over'));
+dz.addEventListener('drop', e=>{
+  e.preventDefault();dz.classList.remove('over');
+  const f=e.dataTransfer.files[0];
+  if(f?.name.endsWith('.docx')) loadFile(f);
   else alert('请上传 .docx 格式文件');
 });
-document.getElementById('file-input').addEventListener('change', e => {
-  if (e.target.files[0]) loadFile(e.target.files[0]);
+document.getElementById('file-input').addEventListener('change',e=>{
+  if(e.target.files[0]) loadFile(e.target.files[0]);
 });
 
-function loadFile(f) {
-  docxFile = f;
-  document.getElementById('file-label').textContent = '✓ ' + f.name;
+async function loadFile(f){
+  docxFile=f;
+  document.getElementById('file-name').textContent='✓ '+f.name;
   dz.classList.add('loaded');
-  document.getElementById('btn-check').disabled = false;
-  fixedBlob = null;
-  document.getElementById('btn-dl').style.display = 'none';
-  document.getElementById('summary').style.display = 'none';
-  document.getElementById('issues-wrap').style.display = 'none';
-  document.getElementById('dl-wrap').style.display = 'none';
-  document.getElementById('empty').style.display = 'flex';
+  document.getElementById('btn-run').disabled=false;
+  fixedBlob=null;
+  document.getElementById('btn-dl').style.display='none';
+  ['sum-wrap','iss-wrap','dl-wrap'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.style.display='none'; el.innerHTML='';
+  });
+  document.getElementById('empty').style.display='flex';
+  skipSet.clear();
+  await buildSkipList(f);
 }
 
-// ─── Unit helpers ─────────────────────────────────────────────────────────
-// Word uses twips (1/20 pt), EMUs (914400 per inch), and dxa (1/20 pt = twip)
-const EMU_PER_MM   = 36000;   // 914400/25.4
-const TWIP_PER_PT  = 20;
-const TWIP_PER_MM  = 56.6929; // 1440/25.4
-
-function twipToMm(twip) { return twip / TWIP_PER_MM; }
-function twipToPt(twip) { return twip / TWIP_PER_PT; }
-function ptToTwip(pt)   { return Math.round(pt * TWIP_PER_PT); }
-function mmToTwip(mm)   { return Math.round(mm * TWIP_PER_MM); }
-
-// ─── XML helpers ─────────────────────────────────────────────────────────
-function attr(xml, tag, attrName) {
-  const re = new RegExp('<' + tag + '[^>]*\\s' + attrName + '="([^"]*)"', 'i');
-  const m = xml.match(re);
-  return m ? m[1] : null;
+async function buildSkipList(f){
+  try{
+    const buf = await f.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const xml = await zip.file('word/document.xml').async('string');
+    const sections=[];
+    const seen=new Set();
+    for(const m of xml.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)){
+      const p=m[0];
+      const style=(p.match(/<w:pStyle\s+w:val="([^"]+)"/) ||[])[1]||'';
+      const lvl=headingLevel(style);
+      if(!lvl) continue;
+      const text=paraText(p).slice(0,50);
+      if(!text||seen.has(text)) continue;
+      seen.add(text); sections.push({text,lvl});
+    }
+    const el=document.getElementById('skip-list');
+    if(!sections.length){el.innerHTML='<div class="skip-ph">未检测到标题段落</div>';return;}
+    el.innerHTML=sections.map(s=>`
+      <label class="skip-item">
+        <input type="checkbox" value="${esc(s.text)}" onchange="onSkipChange(this)">
+        <span class="skip-lbl" title="${esc(s.text)}">${esc(s.text)}</span>
+        <span class="skip-h">H${s.lvl}</span>
+      </label>`).join('');
+  }catch(e){console.error(e);}
 }
 
-function getParaText(p) {
-  return [...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('').trim();
+function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function onSkipChange(cb){cb.checked?skipSet.add(cb.value):skipSet.delete(cb.value);}
+function toggleAll(state){
+  document.querySelectorAll('#skip-list input[type=checkbox]').forEach(cb=>{cb.checked=state;onSkipChange(cb);});
 }
 
-function getStyle(p) {
-  const m = p.match(/<w:pStyle\s+w:val="([^"]+)"/);
-  return m ? m[1] : 'normal';
-}
+// ── XML helpers ──────────────────────────────────────────────────────────
+function paraText(p){return[...p.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('').trim();}
+function paraStyle(p){return(p.match(/<w:pStyle\s+w:val="([^"]+)"/) ||[])[1]||'';}
+function xattr(xml,tag,a){const m=xml.match(new RegExp('<'+tag+'[^>]*\\s'+a+'="([^"]*)"','i'));return m?m[1]:null;}
 
-// ─── Rules getter ─────────────────────────────────────────────────────────
-function getRules() {
-  const v = id => document.getElementById(id).value;
-  const n = id => parseFloat(document.getElementById(id).value);
-  return {
-    body: { cnFont: v('r-body-cn-font'), enFont: v('r-body-en-font'), sizePt: n('r-body-size') },
-    h1:   { font: v('r-h1-font'),   sizePt: n('r-h1-size') },
-    h2:   { font: v('r-h2-font'),   sizePt: n('r-h2-size') },
-    h3:   { font: v('r-h3-font'),   sizePt: n('r-h3-size') },
-    lineSpacing:  n('r-line-spacing'),
-    spacingTol:   n('r-spacing-tol'),
-    spaceBefore:  n('r-space-before'),
-    spaceAfter:   n('r-space-after'),
-    margins: {
-      top:    n('r-margin-top'),
-      bottom: n('r-margin-bottom'),
-      left:   n('r-margin-left'),
-      right:  n('r-margin-right'),
-      tol:    n('r-margin-tol'),
-    },
-    autofix:    document.getElementById('opt-autofix').checked,
-    skipToc:    document.getElementById('opt-skip-toc').checked,
-    skipCover:  document.getElementById('opt-skip-cover').checked,
-  };
-}
-
-// ─── Identify heading level ───────────────────────────────────────────────
-function getHeadingLevel(styleVal) {
-  if (!styleVal) return 0;
-  const s = styleVal.toLowerCase();
-  if (s === '1' || s === 'heading1' || s.includes('1级') || s.includes('1-')) return 1;
-  if (s === '2' || s === 'heading2' || s.includes('2级') || s.includes('2-')) return 2;
-  if (s === '3' || s === 'heading3' || s.includes('3级') || s.includes('3-')) return 3;
-  // Numeric style IDs from Chinese Word templates
-  if (s === '10') return 1;
-  if (s === '21') return 2;
-  if (s === '31') return 3;
+function headingLevel(s){
+  if(!s) return 0;
+  const l=s.toLowerCase();
+  if(l==='1'||l==='heading1'||l==='10'||l.includes('heading 1')||l.includes('1级')) return 1;
+  if(l==='2'||l==='heading2'||l==='21'||l.includes('heading 2')||l.includes('2级')) return 2;
+  if(l==='3'||l==='heading3'||l==='31'||l.includes('heading 3')||l.includes('3级')) return 3;
   return 0;
 }
 
-// ─── Check font in a paragraph ────────────────────────────────────────────
-function checkParaFont(pXml, expectedCn, expectedEn, expectedSizePt, paraIdx, label) {
-  const issues = [];
-  const runs = [...pXml.matchAll(/<w:r[ >][\s\S]*?<\/w:r>/g)];
-  
-  for (const run of runs) {
-    const text = [...run[0].matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
-    if (!text.trim()) continue;
-
-    // Font check
-    const cnFont = attr(run[0], 'w:rFonts', 'w:eastAsia') || attr(run[0], 'w:rFonts', 'w:hint');
-    const enFont = attr(run[0], 'w:rFonts', 'w:ascii') || attr(run[0], 'w:rFonts', 'w:hAnsi');
-    
-    // Size check (w:sz is half-points)
-    const szRaw = attr(run[0], 'w:sz', 'w:val');
-    const szPt = szRaw ? parseInt(szRaw) / 2 : null;
-
-    if (cnFont && expectedCn && !cnFont.includes(expectedCn)) {
-      issues.push({
-        level: 'warn', type: '字体',
-        para: paraIdx, label,
-        text: `中文字体应为"${expectedCn}"，实际为"${cnFont}"`,
-        actual: cnFont, expected: expectedCn,
-        fixable: true,
-      });
-    }
-    if (enFont && expectedEn && !enFont.includes(expectedEn) && /[a-zA-Z]/.test(text)) {
-      issues.push({
-        level: 'warn', type: '字体',
-        para: paraIdx, label,
-        text: `英文字体应为"${expectedEn}"，实际为"${enFont}"`,
-        actual: enFont, expected: expectedEn,
-        fixable: true,
-      });
-    }
-    if (szPt !== null && Math.abs(szPt - expectedSizePt) > 0.5) {
-      issues.push({
-        level: 'err', type: '字号',
-        para: paraIdx, label,
-        text: `字号应为 ${expectedSizePt}pt，实际为 ${szPt}pt`,
-        actual: szPt + 'pt', expected: expectedSizePt + 'pt',
-        fixable: true,
-      });
-    }
-    break; // Only check first substantive run per paragraph to avoid spam
-  }
-  return issues;
+function getRules(){
+  const v=id=>document.getElementById(id).value;
+  const n=id=>parseFloat(document.getElementById(id).value);
+  return{
+    body:{cn:v('r-body-cn'),en:v('r-body-en'),sz:n('r-body-sz'),align:v('r-body-align')},
+    h1:{font:v('r-h1-font'),sz:n('r-h1-sz'),align:v('r-h1-align')},
+    h2:{font:v('r-h2-font'),sz:n('r-h2-sz'),align:v('r-h2-align')},
+    h3:{font:v('r-h3-font'),sz:n('r-h3-sz'),align:v('r-h3-align')},
+    cap:{font:v('r-cap-font'),sz:n('r-cap-sz'),align:v('r-cap-align')},
+    hdrSz:n('r-hdr-sz'),hdrAlign:v('r-hdr-align'),
+    line:n('r-line'),lineTol:n('r-line-tol'),
+    before:n('r-before'),after:n('r-after'),
+    indent:n('r-indent'),indentTol:n('r-indent-tol'),
+    margins:{top:n('r-mt'),bottom:n('r-mb'),left:n('r-ml'),right:n('r-mr'),tol:n('r-m-tol')},
+    fix:  document.getElementById('opt-fix').checked,
+    chkFont:   document.getElementById('opt-font').checked,
+    chkAlign:  document.getElementById('opt-align').checked,
+    chkSpacing:document.getElementById('opt-spacing').checked,
+    chkIndent: document.getElementById('opt-indent').checked,
+    chkMargin: document.getElementById('opt-margin').checked,
+    chkCaption:document.getElementById('opt-caption').checked,
+  };
 }
 
-// ─── Check paragraph spacing ──────────────────────────────────────────────
-function checkSpacing(pXml, rules, paraIdx, label, isBody) {
-  const issues = [];
-  if (!isBody) return issues;
-
-  // Line spacing: w:spacing w:line (twips) and w:lineRule
-  const lineVal  = attr(pXml, 'w:spacing', 'w:line');
-  const lineRule = attr(pXml, 'w:spacing', 'w:lineRule');
-  const beforeVal = attr(pXml, 'w:spacing', 'w:before');
-  const afterVal  = attr(pXml, 'w:spacing', 'w:after');
-
-  if (lineVal && lineRule === 'auto') {
-    // w:line is in twips, 240 = single, 360 = 1.5x
-    const actualMult = parseInt(lineVal) / 240;
-    const expected = rules.lineSpacing;
-    if (Math.abs(actualMult - expected) > rules.spacingTol) {
-      issues.push({
-        level: 'warn', type: '行距',
-        para: paraIdx, label,
-        text: `行距应为 ${expected} 倍，实际为 ${actualMult.toFixed(2)} 倍`,
-        actual: actualMult.toFixed(2) + '倍', expected: expected + '倍',
-        fixable: true,
-      });
-    }
-  }
-
-  if (beforeVal !== null) {
-    const bPt = twipToPt(parseInt(beforeVal));
-    if (Math.abs(bPt - rules.spaceBefore) > 1) {
-      issues.push({
-        level: 'warn', type: '段间距',
-        para: paraIdx, label,
-        text: `段前间距应为 ${rules.spaceBefore}pt，实际为 ${bPt.toFixed(1)}pt`,
-        actual: bPt.toFixed(1) + 'pt', expected: rules.spaceBefore + 'pt',
-        fixable: true,
-      });
-    }
-  }
-  if (afterVal !== null) {
-    const aPt = twipToPt(parseInt(afterVal));
-    if (Math.abs(aPt - rules.spaceAfter) > 1) {
-      issues.push({
-        level: 'warn', type: '段间距',
-        para: paraIdx, label,
-        text: `段后间距应为 ${rules.spaceAfter}pt，实际为 ${aPt.toFixed(1)}pt`,
-        actual: aPt.toFixed(1) + 'pt', expected: rules.spaceAfter + 'pt',
-        fixable: true,
-      });
-    }
-  }
-  return issues;
+// ── Issue factory ────────────────────────────────────────────────────────
+function iss(level,type,para,label,text,actual,expected,fixable=false){
+  return{level,type,para,label,text,actual,expected,fixable};
 }
 
-// ─── Check page margins ───────────────────────────────────────────────────
-function checkMargins(sectXml, rules) {
-  const issues = [];
-  const sides = ['top','bottom','left','right'];
-  for (const side of sides) {
-    const val = attr(sectXml, 'w:pgMar', 'w:' + side);
-    if (!val) continue;
-    const actualMm = twipToMm(parseInt(val));
-    const expectedMm = rules.margins[side];
-    if (Math.abs(actualMm - expectedMm) > rules.margins.tol) {
-      issues.push({
-        level: 'err', type: '页边距',
-        para: -1, label: '页面设置',
-        text: `${side === 'top' ? '上' : side === 'bottom' ? '下' : side === 'left' ? '左' : '右'}边距应为 ${expectedMm}mm，实际为 ${actualMm.toFixed(1)}mm`,
-        actual: actualMm.toFixed(1) + 'mm', expected: expectedMm + 'mm',
-        fixable: true,
-      });
-    }
+// ── Checkers ─────────────────────────────────────────────────────────────
+function chkFont(pXml,cnFont,enFont,szPt,para,label){
+  const out=[];
+  for(const rm of pXml.matchAll(/<w:r[ >][\s\S]*?<\/w:r>/g)){
+    const r=rm[0];
+    const txt=[...r.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map(m=>m[1]).join('');
+    if(!txt.trim()) continue;
+    const cn=xattr(r,'w:rFonts','w:eastAsia');
+    const en=xattr(r,'w:rFonts','w:ascii')||xattr(r,'w:rFonts','w:hAnsi');
+    const szRaw=xattr(r,'w:sz','w:val');
+    const sz=szRaw?parseInt(szRaw)/2:null;
+    if(cn&&cnFont&&!cn.includes(cnFont))
+      out.push(iss('warn','字体',para,label,`中文字体应为"${cnFont}"，实际"${cn}"`,cn,cnFont,true));
+    if(en&&enFont&&/[a-zA-Z]/.test(txt)&&!en.includes(enFont))
+      out.push(iss('warn','字体',para,label,`英文字体应为"${enFont}"，实际"${en}"`,en,enFont,true));
+    if(sz!==null&&Math.abs(sz-szPt)>0.5)
+      out.push(iss('err','字号',para,label,`字号应为 ${szPt}pt，实际 ${sz}pt`,sz+'pt',szPt+'pt',true));
+    break; // only first run
   }
-  return issues;
+  return out;
 }
 
-// ─── Auto-fix helpers ─────────────────────────────────────────────────────
-function fixRunFont(runXml, cnFont, enFont, sizePt) {
-  // Build or replace rPr/rFonts
-  let rpr = runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0] || '';
-  
-  // Fix fonts
-  if (rpr.includes('w:rFonts')) {
-    rpr = rpr.replace(/<w:rFonts[^\/]*\/>|<w:rFonts[^>]*>[\s\S]*?<\/w:rFonts>/,
-      `<w:rFonts w:ascii="${enFont}" w:hAnsi="${enFont}" w:eastAsia="${cnFont}"/>`);
+function chkAlign(pXml,expected,para,label){
+  const raw=xattr(pXml,'w:jc','w:val')||'both';
+  const map={left:'left',right:'right',center:'center',both:'both',distribute:'both'};
+  const actual=map[raw]||raw;
+  if(actual!==expected)
+    return[iss('warn','对齐',para,label,`对齐应为"${expected}"，实际"${actual}"`,actual,expected,true)];
+  return[];
+}
+
+function chkSpacing(pXml,rules,para,label){
+  const out=[];
+  const lineVal=xattr(pXml,'w:spacing','w:line');
+  const lineRule=xattr(pXml,'w:spacing','w:lineRule');
+  const bef=xattr(pXml,'w:spacing','w:before');
+  const aft=xattr(pXml,'w:spacing','w:after');
+  if(lineVal&&lineRule==='auto'){
+    const actual=parseInt(lineVal)/240;
+    if(Math.abs(actual-rules.line)>rules.lineTol)
+      out.push(iss('warn','行距',para,label,`行距应 ${rules.line} 倍，实际 ${actual.toFixed(2)} 倍`,actual.toFixed(2)+'倍',rules.line+'倍',true));
+  }
+  if(bef!==null){const b=toPt(parseInt(bef));if(Math.abs(b-rules.before)>1)out.push(iss('warn','段间距',para,label,`段前应 ${rules.before}pt，实际 ${b.toFixed(1)}pt`,b.toFixed(1)+'pt',rules.before+'pt',true));}
+  if(aft!==null){const a=toPt(parseInt(aft));if(Math.abs(a-rules.after)>1)out.push(iss('warn','段间距',para,label,`段后应 ${rules.after}pt，实际 ${a.toFixed(1)}pt`,a.toFixed(1)+'pt',rules.after+'pt',true));}
+  return out;
+}
+
+function chkIndent(pXml,expChars,tol,szPt,para,label){
+  const fl=xattr(pXml,'w:ind','w:firstLineChars');
+  const flTwip=xattr(pXml,'w:ind','w:firstLine');
+  let actual=null;
+  if(fl!==null) actual=parseInt(fl)/100;
+  else if(flTwip!==null) actual=parseInt(flTwip)/(szPt*TWIP_PER_PT*2);
+  if(actual===null){
+    if(expChars>0) return[iss('warn','首行缩进',para,label,`应有首行缩进 ${expChars} 字符，实际无缩进`,'无',expChars+'字符',true)];
+    return[];
+  }
+  if(Math.abs(actual-expChars)>tol)
+    return[iss('warn','首行缩进',para,label,`缩进应 ${expChars} 字符，实际约 ${actual.toFixed(1)} 字符`,actual.toFixed(1)+'字符',expChars+'字符',true)];
+  return[];
+}
+
+function chkMargins(sectXml,rules){
+  const out=[];
+  const sides={top:'上',bottom:'下',left:'左',right:'右'};
+  for(const[k,name] of Object.entries(sides)){
+    const v=xattr(sectXml,'w:pgMar','w:'+k);
+    if(!v) continue;
+    const actual=toMm(parseInt(v));
+    const exp=rules.margins[k];
+    if(Math.abs(actual-exp)>rules.margins.tol)
+      out.push(iss('err','页边距',-1,'页面设置',`${name}边距应 ${exp}mm，实际 ${actual.toFixed(1)}mm`,actual.toFixed(1)+'mm',exp+'mm',true));
+  }
+  return out;
+}
+
+// ── Auto-fix ─────────────────────────────────────────────────────────────
+function fixRunFont(runXml,cn,en,sz){
+  let rpr=runXml.match(/<w:rPr>[\s\S]*?<\/w:rPr>/)?.[0]||'<w:rPr></w:rPr>';
+  const ftag=`<w:rFonts w:ascii="${en}" w:hAnsi="${en}" w:eastAsia="${cn}"/>`;
+  const szv=String(Math.round(sz*2));
+  rpr=rpr.includes('w:rFonts')
+    ?rpr.replace(/<w:rFonts[^\/]*\/>|<w:rFonts[^>]*>[\s\S]*?<\/w:rFonts>/,ftag)
+    :rpr.replace('<w:rPr>','<w:rPr>'+ftag);
+  if(rpr.match(/<w:sz\b/)){
+    rpr=rpr.replace(/<w:sz\s+w:val="[^"]*"\s*\/>/,`<w:sz w:val="${szv}"/>`);
+    rpr=rpr.replace(/<w:szCs\s+w:val="[^"]*"\s*\/>/,`<w:szCs w:val="${szv}"/>`);
   } else {
-    rpr = rpr.replace('<w:rPr>', `<w:rPr><w:rFonts w:ascii="${enFont}" w:hAnsi="${enFont}" w:eastAsia="${cnFont}"/>`);
+    rpr=rpr.replace('</w:rPr>',`<w:sz w:val="${szv}"/><w:szCs w:val="${szv}"/></w:rPr>`);
   }
-
-  // Fix size
-  const sz = String(Math.round(sizePt * 2));
-  if (rpr.includes('w:sz ') || rpr.includes('<w:sz/>')) {
-    rpr = rpr.replace(/<w:sz\s+w:val="[^"]*"\s*\/>/, `<w:sz w:val="${sz}"/>`);
-    rpr = rpr.replace(/<w:szCs\s+w:val="[^"]*"\s*\/>/, `<w:szCs w:val="${sz}"/>`);
-  } else {
-    rpr = rpr.replace('</w:rPr>', `<w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`);
-  }
-
-  if (!runXml.includes('<w:rPr>')) {
-    return runXml.replace('<w:r>', '<w:r>' + rpr);
-  }
-  return runXml.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/, rpr);
+  if(!runXml.includes('<w:rPr>')) return runXml.replace(/(<w:r\b[^>]*>)/,'$1'+rpr);
+  return runXml.replace(/<w:rPr>[\s\S]*?<\/w:rPr>/,rpr);
 }
 
-function fixParaSpacing(paraXml, lineSpacing, spaceBefore, spaceAfter) {
-  const lineVal = Math.round(lineSpacing * 240);
-  const spacingTag = `<w:spacing w:line="${lineVal}" w:lineRule="auto" w:before="${ptToTwip(spaceBefore)}" w:after="${ptToTwip(spaceAfter)}"/>`;
-  
-  if (paraXml.includes('w:spacing')) {
-    return paraXml.replace(/<w:spacing[^\/]*\/>|<w:spacing[^>]*>[\s\S]*?<\/w:spacing>/, spacingTag);
-  } else {
-    return paraXml.replace('</w:pPr>', spacingTag + '</w:pPr>');
-  }
+function fixSpacing(pXml,line,before,after){
+  const lv=Math.round(line*240);
+  const tag=`<w:spacing w:line="${lv}" w:lineRule="auto" w:before="${ptTwip(before)}" w:after="${ptTwip(after)}"/>`;
+  return pXml.includes('w:spacing')
+    ?pXml.replace(/<w:spacing[^\/]*\/>|<w:spacing[^>]*>[\s\S]*?<\/w:spacing>/,tag)
+    :pXml.replace('</w:pPr>',tag+'</w:pPr>');
 }
 
-function fixMargins(sectXml, rules) {
-  const top    = mmToTwip(rules.margins.top);
-  const bottom = mmToTwip(rules.margins.bottom);
-  const left   = mmToTwip(rules.margins.left);
-  const right  = mmToTwip(rules.margins.right);
-  const margTag = `<w:pgMar w:top="${top}" w:right="${right}" w:bottom="${bottom}" w:left="${left}" w:header="709" w:footer="709" w:gutter="0"/>`;
-  if (sectXml.includes('w:pgMar')) {
-    return sectXml.replace(/<w:pgMar[^\/]*\/>|<w:pgMar[^>]*>[\s\S]*?<\/w:pgMar>/, margTag);
-  }
-  return sectXml.replace('</w:sectPr>', margTag + '</w:sectPr>');
+function fixAlign(pXml,align){
+  const tag=`<w:jc w:val="${align}"/>`;
+  return pXml.includes('<w:jc')
+    ?pXml.replace(/<w:jc\s+w:val="[^"]*"\s*\/>/,tag)
+    :pXml.replace('</w:pPr>',tag+'</w:pPr>');
 }
 
-// ─── Main check + fix ─────────────────────────────────────────────────────
-async function runCheck() {
-  if (!docxFile) return;
-  const rules = getRules();
+function fixMargins(sectXml,rules){
+  const tag=`<w:pgMar w:top="${mmTwip(rules.margins.top)}" w:right="${mmTwip(rules.margins.right)}" w:bottom="${mmTwip(rules.margins.bottom)}" w:left="${mmTwip(rules.margins.left)}" w:header="709" w:footer="709" w:gutter="0"/>`;
+  return sectXml.includes('w:pgMar')
+    ?sectXml.replace(/<w:pgMar[^\/]*\/>|<w:pgMar[^>]*>[\s\S]*?<\/w:pgMar>/,tag)
+    :sectXml.replace('</w:sectPr>',tag+'</w:sectPr>');
+}
 
-  const btn = document.getElementById('btn-check');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span> 检查中…';
-  document.getElementById('empty').style.display = 'none';
-  document.getElementById('summary').style.display = 'none';
-  document.getElementById('issues-wrap').style.display = 'none';
-  document.getElementById('dl-wrap').style.display = 'none';
+// ── Main check ───────────────────────────────────────────────────────────
+document.getElementById('btn-run').addEventListener('click', runCheck);
 
-  const prog = document.getElementById('prog-bar');
-  const fill = document.getElementById('prog-fill');
-  prog.style.display = 'block';
-  fill.style.width = '5%';
+async function runCheck(){
+  if(!docxFile) return;
+  const rules=getRules();
+  const btn=document.getElementById('btn-run');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> 检查中…';
+  document.getElementById('empty').style.display='none';
+  ['sum-wrap','iss-wrap','dl-wrap'].forEach(id=>{
+    const el=document.getElementById(id); el.style.display='none'; el.innerHTML='';
+  });
+  const bar=document.getElementById('prog-bar');
+  const fill=document.getElementById('prog-fill');
+  bar.style.display='block'; fill.style.width='5%';
+  await new Promise(r=>setTimeout(r,20));
 
-  await new Promise(r => setTimeout(r, 30));
+  try{
+    const buf=await docxFile.arrayBuffer();
+    const zip=await JSZip.loadAsync(buf);
+    fill.style.width='15%';
+    const xmlRaw=await zip.file('word/document.xml').async('string');
+    fill.style.width='25%';
 
-  try {
-    const buf = await docxFile.arrayBuffer();
-    const zip = await JSZip.loadAsync(buf);
-    fill.style.width = '15%';
+    let fixedXml=xmlRaw;
+    const issues=[];
+    const fixes=new Map();
 
-    const xmlRaw = await zip.file('word/document.xml').async('string');
-    fill.style.width = '25%';
-
-    const paraRe = /<w:p[ >][\s\S]*?<\/w:p>/g;
-    const parasRaw = [...xmlRaw.matchAll(paraRe)];
-    fill.style.width = '35%';
-
-    const issues = [];
-    let fixedXml = xmlRaw;
-    let paraCount = 0;
-    let skipCount = 0; // pages to skip at start
-
-    // Detect and skip cover/declaration pages (first few paragraphs with specific styles)
-    if (rules.skipCover) skipCount = 15;
-
-    // Check margins from sectPr
-    const sectMatch = xmlRaw.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
-    if (sectMatch) {
-      const margIssues = checkMargins(sectMatch[0], rules);
-      issues.push(...margIssues);
-      if (rules.autofix && margIssues.some(i => i.fixable)) {
-        fixedXml = fixedXml.replace(sectMatch[0], fixMargins(sectMatch[0], rules));
+    // Page margins
+    if(rules.chkMargin){
+      const sm=xmlRaw.match(/<w:sectPr[\s\S]*?<\/w:sectPr>/);
+      if(sm){
+        const mi=chkMargins(sm[0],rules);
+        issues.push(...mi);
+        if(rules.fix&&mi.some(i=>i.fixable))
+          fixedXml=fixedXml.replace(sm[0],fixMargins(sm[0],rules));
       }
     }
+    fill.style.width='35%';
 
-    // Check paragraphs
-    let inToc = false;
-    const paraReplacements = new Map();
+    const paras=[...xmlRaw.matchAll(/<w:p[ >][\s\S]*?<\/w:p>/g)];
+    let skipActive=false;
 
-    for (let idx = 0; idx < parasRaw.length; idx++) {
-      const pXml = parasRaw[idx][0];
-      const text = getParaText(pXml);
-      const styleVal = getStyle(pXml);
-      const headingLevel = getHeadingLevel(styleVal);
+    for(let idx=0;idx<paras.length;idx++){
+      const pXml=paras[idx][0];
+      const text=paraText(pXml);
+      const style=paraStyle(pXml);
+      const lvl=headingLevel(style);
 
-      // Detect TOC
-      if (text.includes('目录') && headingLevel >= 1) inToc = true;
-      if (inToc && headingLevel >= 1 && !text.includes('目录') && text.match(/^\d/)) inToc = false;
-      if (rules.skipToc && inToc) continue;
-      if (idx < skipCount) continue;
+      // Update skip state at each heading
+      if(lvl>0&&text){
+        skipActive=skipSet.has(text);
+      }
+      if(skipActive||!text) continue;
 
-      paraCount++;
-      const shortText = text.slice(0, 20) + (text.length > 20 ? '…' : '');
-      const label = `段落 ${idx+1}${text ? ('："' + shortText + '"') : ''}`;
+      const short=text.slice(0,26)+(text.length>26?'…':'');
+      const label=`段落 ${idx+1}："${short}"`;
+      let np=pXml; let changed=false;
 
-      let newPara = pXml;
-      let paraChanged = false;
+      const isCaption=/^(图|表)\s*[\d一二三四五六七八九十]/.test(text);
 
-      if (headingLevel === 1) {
-        const r = rules.h1;
-        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
+      const doFont=(cnF,enF,sz)=>{
+        if(!rules.chkFont) return;
+        const fi=chkFont(pXml,cnF,enF,sz,idx,label);
         issues.push(...fi);
-        if (rules.autofix && fi.some(i=>i.fixable)) {
-          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
-            fixRunFont(rm, r.font, r.font, r.sizePt));
-          paraChanged = true;
+        if(fi.length&&rules.fix){np=np.replace(/<w:r[ >][\s\S]*?<\/w:r>/g,rm=>fixRunFont(rm,cnF,enF,sz));changed=true;}
+      };
+      const doAlign=(al)=>{
+        if(!rules.chkAlign) return;
+        const ai=chkAlign(pXml,al,idx,label);
+        issues.push(...ai);
+        if(ai.length&&rules.fix){np=fixAlign(np,al);changed=true;}
+      };
+
+      if(lvl===1){doFont(rules.h1.font,rules.h1.font,rules.h1.sz);doAlign(rules.h1.align);}
+      else if(lvl===2){doFont(rules.h2.font,rules.h2.font,rules.h2.sz);doAlign(rules.h2.align);}
+      else if(lvl===3){doFont(rules.h3.font,rules.h3.font,rules.h3.sz);doAlign(rules.h3.align);}
+      else if(isCaption&&rules.chkCaption){doFont(rules.cap.font,rules.cap.font,rules.cap.sz);doAlign(rules.cap.align);}
+      else{
+        doFont(rules.body.cn,rules.body.en,rules.body.sz);
+        doAlign(rules.body.align);
+        if(rules.chkSpacing){
+          const si=chkSpacing(pXml,rules,idx,label);
+          issues.push(...si);
+          if(si.length&&rules.fix){np=fixSpacing(np,rules.line,rules.before,rules.after);changed=true;}
         }
-      } else if (headingLevel === 2) {
-        const r = rules.h2;
-        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
-        issues.push(...fi);
-        if (rules.autofix && fi.some(i=>i.fixable)) {
-          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
-            fixRunFont(rm, r.font, r.font, r.sizePt));
-          paraChanged = true;
-        }
-      } else if (headingLevel === 3) {
-        const r = rules.h3;
-        const fi = checkParaFont(pXml, r.font, r.font, r.sizePt, idx, label);
-        issues.push(...fi);
-        if (rules.autofix && fi.some(i=>i.fixable)) {
-          newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
-            fixRunFont(rm, r.font, r.font, r.sizePt));
-          paraChanged = true;
-        }
-      } else if (text.length > 0) {
-        // Body paragraph
-        const r = rules.body;
-        const fi = checkParaFont(pXml, r.cnFont, r.enFont, r.sizePt, idx, label);
-        const si = checkSpacing(pXml, rules, idx, label, true);
-        issues.push(...fi, ...si);
-        if (rules.autofix) {
-          if (fi.some(i=>i.fixable)) {
-            newPara = newPara.replace(/<w:r[ >][\s\S]*?<\/w:r>/g, rm =>
-              fixRunFont(rm, r.cnFont, r.enFont, r.sizePt));
-            paraChanged = true;
-          }
-          if (si.some(i=>i.fixable)) {
-            newPara = fixParaSpacing(newPara, rules.lineSpacing, rules.spaceBefore, rules.spaceAfter);
-            paraChanged = true;
-          }
+        if(rules.chkIndent){
+          const ii=chkIndent(pXml,rules.indent,rules.indentTol,rules.body.sz,idx,label);
+          issues.push(...ii);
         }
       }
-
-      if (paraChanged) paraReplacements.set(pXml, newPara);
+      if(changed) fixes.set(pXml,np);
     }
 
-    fill.style.width = '75%';
-
-    // Apply paragraph fixes
-    for (const [old, nw] of paraReplacements) {
-      fixedXml = fixedXml.replace(old, nw);
-    }
-
-    fill.style.width = '85%';
+    fill.style.width='75%';
+    for(const[old,nw] of fixes) fixedXml=fixedXml.replace(old,nw);
+    fill.style.width='88%';
 
     // Pack fixed docx
-    const allFiles = {};
-    for (const [name, file] of Object.entries(zip.files)) {
-      if (!file.dir) allFiles[name] = await file.async('arraybuffer');
+    const newZip=new JSZip();
+    for(const[name,file] of Object.entries(zip.files)){
+      if(!file.dir){
+        const data=name==='word/document.xml'
+          ?new TextEncoder().encode(fixedXml)
+          :await file.async('arraybuffer');
+        newZip.file(name,data);
+      }
     }
-    allFiles['word/document.xml'] = new TextEncoder().encode(fixedXml);
+    fixedBlob=await newZip.generateAsync({type:'blob',compression:'DEFLATE'});
+    fill.style.width='100%';
 
-    const newZip = new JSZip();
-    for (const [name, data] of Object.entries(allFiles)) newZip.file(name, data);
-    fixedBlob = await newZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+    allIssues=issues;
+    renderResults(issues,paras.length);
 
-    fill.style.width = '100%';
-    allIssues = issues;
-
-    renderResults(issues, paraCount);
-
-  } catch(err) {
-    alert('处理出错：' + err.message);
-    console.error(err);
-  }
-
-  btn.disabled = false;
-  btn.innerHTML = '重新检查';
-  prog.style.display = 'none';
+  }catch(e){alert('处理出错：'+e.message);console.error(e);}
+  btn.disabled=false; btn.innerHTML='重新检查';
+  bar.style.display='none';
 }
 
-// ─── Render results ───────────────────────────────────────────────────────
-function renderResults(issues, paraCount) {
-  const errCount  = issues.filter(i=>i.level==='err').length;
-  const warnCount = issues.filter(i=>i.level==='warn').length;
-  const okCount   = Math.max(0, paraCount - new Set(issues.map(i=>i.para)).size);
+// ── Render ───────────────────────────────────────────────────────────────
+function renderResults(issues,total){
+  const errs=issues.filter(i=>i.level==='err').length;
+  const warns=issues.filter(i=>i.level==='warn').length;
+  const affected=new Set(issues.filter(i=>i.para>=0).map(i=>i.para)).size;
 
-  // Summary
-  const sumEl = document.getElementById('summary');
-  sumEl.style.display = 'block';
-  sumEl.innerHTML = `
-    <div class="summary-grid">
-      <div class="stat-card stat-err">
-        <div class="stat-num">${errCount}</div>
-        <div class="stat-label">错误</div>
-      </div>
-      <div class="stat-card stat-warn">
-        <div class="stat-num">${warnCount}</div>
-        <div class="stat-label">警告</div>
-      </div>
-      <div class="stat-card stat-ok">
-        <div class="stat-num">${okCount}</div>
-        <div class="stat-label">段落正常</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-num" style="color:var(--blue)">${paraCount}</div>
-        <div class="stat-label">段落总数</div>
-      </div>
-    </div>
-  `;
+  const sw=document.getElementById('sum-wrap');
+  sw.style.display='block';
+  sw.innerHTML=`<div class="sum-grid">
+    <div class="stat"><div class="stat-n ce">${errs}</div><div class="stat-l">错误</div></div>
+    <div class="stat"><div class="stat-n cw">${warns}</div><div class="stat-l">警告</div></div>
+    <div class="stat"><div class="stat-n cg">${Math.max(0,total-affected)}</div><div class="stat-l">段落正常</div></div>
+    <div class="stat"><div class="stat-n cb">${total}</div><div class="stat-l">段落总数</div></div>
+  </div>`;
 
-  // Issues
-  currentFilter = 'all';
-  renderIssueList(issues);
+  currentFilter='all';
+  renderIssues(issues);
 
-  // Download
-  if (document.getElementById('opt-autofix').checked && fixedBlob) {
-    const dlWrap = document.getElementById('dl-wrap');
-    dlWrap.style.display = 'block';
-    dlWrap.innerHTML = `
-      <div class="dl-card">
-        <div class="dl-info">
-          <strong>修复版文档已生成</strong>
-          可修复项已自动处理，建议下载后用 Word 对比确认效果。
-        </div>
-        <button class="btn btn-dl" onclick="downloadFixed()">⬇ 下载修复版</button>
-      </div>
-    `;
-    document.getElementById('btn-dl').style.display = 'inline-flex';
+  if(fixedBlob){
+    const dw=document.getElementById('dl-wrap');
+    dw.style.display='block';
+    dw.innerHTML=`<div class="dl-card">
+      <div class="dl-info"><strong>修复版已生成</strong>可修复项已自动处理，建议在 Word 中对比确认。</div>
+      <button class="btn btn-dl" onclick="dlFixed()">⬇ 下载修复版</button>
+    </div>`;
+    document.getElementById('btn-dl').style.display='inline-flex';
   }
 }
 
-function renderIssueList(issues) {
-  const wrap = document.getElementById('issues-wrap');
-  wrap.style.display = 'block';
+function renderIssues(issues){
+  const iw=document.getElementById('iss-wrap');
+  iw.style.display='block';
+  const types=[...new Set(issues.map(i=>i.type))];
+  const filtered=currentFilter==='all'?issues
+    :issues.filter(i=>i.level===currentFilter||i.type===currentFilter);
 
-  const filtered = currentFilter === 'all' ? issues
-    : issues.filter(i => i.level === currentFilter || i.type === currentFilter);
-
-  const types = [...new Set(issues.map(i=>i.type))];
-
-  wrap.innerHTML = `
-    <div class="issues-header">
-      <div class="issues-title">问题列表（${filtered.length} 项）</div>
-      <div class="filter-tabs">
-        <div class="ftab ${currentFilter==='all'?'active':''}" onclick="setFilter('all')">全部 ${issues.length}</div>
-        <div class="ftab ${currentFilter==='err'?'active':''}" onclick="setFilter('err')" style="color:${currentFilter==='err'?'':'var(--red)'}">错误 ${issues.filter(i=>i.level==='err').length}</div>
-        <div class="ftab ${currentFilter==='warn'?'active':''}" onclick="setFilter('warn')" style="color:${currentFilter==='warn'?'':'var(--orange)'}">警告 ${issues.filter(i=>i.level==='warn').length}</div>
-        ${types.map(t=>`<div class="ftab ${currentFilter===t?'active':''}" onclick="setFilter('${t}')">${t}</div>`).join('')}
+  iw.innerHTML=`
+    <div class="iss-hd">
+      <div class="iss-title">问题列表（${filtered.length} / ${issues.length}）</div>
+      <div class="ftabs">
+        <div class="ftab ${currentFilter==='all'?'on':''}" onclick="filt('all')">全部</div>
+        <div class="ftab ${currentFilter==='err'?'on':''}" onclick="filt('err')" style="${currentFilter!=='err'?'color:var(--red)':''}">错误 ${issues.filter(i=>i.level==='err').length}</div>
+        <div class="ftab ${currentFilter==='warn'?'on':''}" onclick="filt('warn')" style="${currentFilter!=='warn'?'color:var(--orange)':''}">警告 ${issues.filter(i=>i.level==='warn').length}</div>
+        ${types.map(t=>`<div class="ftab ${currentFilter===t?'on':''}" onclick="filt('${t}')">${t}</div>`).join('')}
       </div>
     </div>
-    <div id="issue-list">
-      ${filtered.length === 0
-        ? `<div class="no-issues"><div class="no-issues-icon">✅</div><div>没有发现格式问题</div></div>`
-        : filtered.map(i => `
-          <div class="issue-card ${i.level}">
-            <div class="issue-top">
-              <span class="issue-badge ${i.level==='err'?'badge-err':'badge-warn'}">${i.level==='err'?'错误':'警告'}</span>
-              <span class="badge-type">${i.type}</span>
-              <div class="issue-text">${i.text}</div>
-            </div>
-            <div class="issue-detail">
-              <span>📍 ${i.label}</span>
-              ${i.actual ? `<span>实际：<b class="detail-actual">${i.actual}</b></span>` : ''}
-              ${i.expected ? `<span>应为：<b class="detail-expected">${i.expected}</b></span>` : ''}
-              ${i.fixable ? `<span>🔧 可自动修复</span>` : ''}
-            </div>
+    ${filtered.length===0
+      ?`<div class="no-iss"><div style="font-size:30px;margin-bottom:8px">✅</div>没有检测到格式问题</div>`
+      :filtered.map(i=>`
+        <div class="icard ${i.level}">
+          <div class="icard-top">
+            <span class="ibadge ${i.level==='err'?'ibe':'ibw'}">${i.level==='err'?'错误':'警告'}</span>
+            <span class="itype">${i.type}</span>
+            <div class="itext">${i.text}</div>
           </div>
-        `).join('')}
-    </div>
+          <div class="idet">
+            <span>📍 ${i.label}</span>
+            ${i.actual?`<span>实际：<b class="da">${i.actual}</b></span>`:''}
+            ${i.expected?`<span>应为：<b class="de">${i.expected}</b></span>`:''}
+            ${i.fixable?'<span>🔧 可修复</span>':''}
+          </div>
+        </div>`).join('')}
   `;
 }
 
-function setFilter(f) {
-  currentFilter = f;
-  renderIssueList(allIssues);
-}
+function filt(f){currentFilter=f;renderIssues(allIssues);}
 
-function downloadFixed() {
-  if (!fixedBlob) return;
-  const base = docxFile.name.replace(/\.docx$/i, '');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(fixedBlob);
-  a.download = base + '_格式修复.docx';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+function dlFixed(){
+  if(!fixedBlob) return;
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(fixedBlob);
+  a.download=docxFile.name.replace(/\.docx$/i,'')+'_格式修复.docx';
+  a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),3000);
 }
-
-document.getElementById('btn-check').addEventListener('click', runCheck);
-document.getElementById('btn-dl').addEventListener('click', downloadFixed);
 </script>
 </body>
 </html>
