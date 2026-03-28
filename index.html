@@ -547,7 +547,7 @@ function unescapeXml(s) {
 }
 
 // ─── Paragraph rewriter ───────────────────────────────────────────────────
-function rewritePara(paraXml, newNumsArr, prefix, chapter) {
+function rewritePara(paraXml, newNumsArr, prefix, chapter, titleMap) {
   const runRe = /<w:r[ >][\s\S]*?<\/w:r>/g;
   const runMatches = [...paraXml.matchAll(runRe)];
   if (!runMatches.length) return paraXml;
@@ -627,17 +627,18 @@ function rewritePara(paraXml, newNumsArr, prefix, chapter) {
       const afterNum = combined.slice(figNumStr.length);
       const newNum = newNumsArr[numIdx++];
       const rpr = getRunRpr(runs[collected[0].idx].xml);
+      const titleSuffix = (titleMap && titleMap[newNum]) ? ' ' + titleMap[newNum] : '';
 
       skipUntil = Math.max(skipUntil, ...collected.map(c=>c.idx));
 
       if (startRunIdx === i) {
         const keepPart = rtext.slice(0, figPos + prefix.length);
-        let newXml = makeRun(getRunRpr(rxml), keepPart) + makeRun(rpr, `${chapter}.${newNum}`);
+        let newXml = makeRun(getRunRpr(rxml), keepPart) + makeRun(rpr, `${chapter}.${newNum}${titleSuffix}`);
         if (afterNum.trim()) newXml += makeRun(rpr, afterNum);
         replacements[i] = newXml;
         for (const c of collected.slice(1)) replacements[c.idx] = '';
       } else {
-        let newXml = makeRun(rpr, `${chapter}.${newNum}`);
+        let newXml = makeRun(rpr, `${chapter}.${newNum}${titleSuffix}`);
         if (afterNum.trim()) newXml += makeRun(rpr, afterNum);
         replacements[collected[0].idx] = newXml;
         for (const c of collected.slice(1)) replacements[c.idx] = '';
@@ -706,6 +707,16 @@ $('btn-run').addEventListener('click', async () => {
     log(`编号范围: ${prefix}${chapter}.${startSeq} → ${prefix}${chapter}.${seq}`, 'ok');
     setProgress(35);
 
+    // Build newNum -> title text map (strip "图X.Y " prefix from caption fullText)
+    const titleMap = {};
+    const stripPrefixRe = new RegExp('^' + prefix + '\\s*' + chapter.replace('.','[.．]') + '[.．]\\s*\\d+\\s*');
+    for (const cap of captionList) {
+      for (let k = 0; k < cap.newNums.length; k++) {
+        const title = cap.fullText.replace(stripPrefixRe, '').trim();
+        if (title) titleMap[cap.newNums[k]] = title;
+      }
+    }
+
     // Build ordered body queue
     const bodyQueue = {};
     for (const cap of captionList) {
@@ -751,7 +762,7 @@ $('btn-run').addEventListener('click', async () => {
         return old; // fallback: keep original
       });
 
-      const newPara = rewritePara(oldPara, newNums, prefix, chapter);
+      const newPara = rewritePara(oldPara, newNums, prefix, chapter, titleMap);
       if (newPara !== oldPara) {
         paraReplacements.set(oldPara, newPara);
         bodyChanged++;
